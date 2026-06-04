@@ -64,6 +64,11 @@ jobs:
       - name: Build Tauri app
         run: npx --package=@tauri-apps/cli tauri build --bundles deb
 
+      - name: Debug - List bundle output
+        run: |
+          echo "=== Listing src-tauri/target/release/bundle/ ==="
+          find src-tauri/target/release/bundle/ -type f 2>/dev/null || echo "Bundle directory not found"
+
       - name: Find and upload .deb
         uses: actions/upload-artifact@v4
         with:
