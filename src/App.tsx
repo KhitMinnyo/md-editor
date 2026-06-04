@@ -20,7 +20,6 @@ import {
   openFileDialog,
   getActiveFileId,
   setActiveFileId,
-  createAutoSave,
   isMarkdownFile,
   isBinaryFile,
   isPdfFile,
@@ -37,7 +36,7 @@ import {
 type Theme = 'light' | 'dark';
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
 
-const autoSave = createAutoSave(800);
+
 
 export default function App() {
   // Theme
@@ -145,11 +144,22 @@ export default function App() {
         const mdFiles = await loadFolder(lastFolder);
         if (cancelled) return;
         const storedActive = getActiveFileId();
-        if (storedActive && mdFiles.some((f) => f.id === storedActive)) {
-          setActiveFile(storedActive);
-        } else if (mdFiles.length > 0) {
-          setActiveFile(mdFiles[0].id);
-          setActiveFileId(mdFiles[0].id);
+        const targetId = (storedActive && mdFiles.some((f) => f.id === storedActive))
+          ? storedActive
+          : mdFiles.length > 0 ? mdFiles[0].id : null;
+
+        if (targetId) {
+          // Read content from disk before setting active
+          try {
+            const content = await readFile(targetId);
+            setFiles((prev) =>
+              prev.map((f) => (f.id === targetId ? { ...f, content } : f)),
+            );
+          } catch (err) {
+            console.error('Failed to read initial file:', err);
+          }
+          setActiveFile(targetId);
+          setActiveFileId(targetId);
         }
       }
     }
@@ -249,35 +259,33 @@ export default function App() {
     setActiveFileId(null);
   }, [loadFolder]);
 
-  // Select file — load content on-demand before showing in editor
+  // Select file — always load content from disk before showing in editor
   const handleSelectFile = useCallback(async (id: string) => {
     setSaveStatus('saved');
-    // Check if it's a binary file
     const fileName = id.split('/').pop() || '';
     if (isBinaryFile(fileName)) {
-      // Still set active to show the unsupported message
       setActiveFile(id);
       setActiveFileId(id);
       return;
     }
-    // Load content on-demand if not loaded yet
     if (isTauri()) {
-      const existingFile = files.find((f) => f.id === id);
-      if (existingFile && !existingFile.content) {
-        try {
-          const content = await readFile(id);
-          setFiles((prev) =>
-            prev.map((f) => (f.id === id ? { ...f, content } : f)),
-          );
-        } catch (err) {
-          console.error('Failed to read file:', err);
-        }
+      try {
+        const content = await readFile(id);
+        setFiles((prev) =>
+          prev.map((f) => (f.id === id ? { ...f, content } : f)),
+        );
+        setActiveFile(id);
+        setActiveFileId(id);
+      } catch (err) {
+        console.error('Failed to read file:', err);
+        setActiveFile(id);
+        setActiveFileId(id);
       }
+    } else {
+      setActiveFile(id);
+      setActiveFileId(id);
     }
-    // Set active AFTER content is loaded
-    setActiveFile(id);
-    setActiveFileId(id);
-  }, [files]);
+  }, []);
 
   // Create file
   const handleCreateFile = useCallback(
@@ -306,23 +314,29 @@ export default function App() {
     [activeFileId, currentFolder, loadFolder],
   );
 
-  // Editor content update
+  // Debounced save — all heavy work happens here, NOT on every keystroke
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingHtmlRef = useRef<string | null>(null);
+
   const handleEditorUpdate = useCallback(
     (html: string) => {
       if (!activeFileId) return;
-      setSaveStatus('saving');
 
-      // For native: convert HTML to Markdown before saving
-      const contentToSave = isTauri() ? htmlToMarkdown(html) : html;
-      autoSave(activeFileId, contentToSave);
+      // Store latest HTML, don't process yet
+      pendingHtmlRef.current = html;
 
-      // Update local state optimistically
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === activeFileId ? { ...f, content: isTauri() ? contentToSave : html, updatedAt: Date.now() } : f,
-        ),
-      );
-      setTimeout(() => setSaveStatus('saved'), 1000);
+      // Debounce: only process after 600ms of no typing
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(async () => {
+        const pendingHtml = pendingHtmlRef.current;
+        if (!pendingHtml || !activeFileId) return;
+        pendingHtmlRef.current = null;
+
+        setSaveStatus('saving');
+        const contentToSave = isTauri() ? htmlToMarkdown(pendingHtml) : pendingHtml;
+        await saveFile(activeFileId, contentToSave);
+        setSaveStatus('saved');
+      }, 600);
     },
     [activeFileId],
   );
@@ -375,7 +389,6 @@ export default function App() {
       if (isMarkdownFile(activeFile.name)) {
         return markdownToHtml(activeFile.content);
       }
-      // For text/code files, wrap in a code block
       const ext = getFileExtension(activeFile.name);
       const escaped = activeFile.content
         .replace(/&/g, '&amp;')

@@ -58,30 +58,81 @@ export default function EditorComponent({ content, onUpdate, editorRef }: Editor
       Typography,
       Table.configure({
         resizable: true,
-        HTMLAttributes: {
-          class: 'tiptap-table',
-        },
       }),
       TableRow,
       TableCell,
       TableHeader,
     ],
     content,
-    onUpdate: ({ editor }) => {
-      onUpdate(editor.getHTML());
+    onUpdate: ({ editor: ed }) => {
+      onUpdate(ed.getHTML());
+    },
+    // Handle clipboard paste & drag-drop for images
+    editorProps: {
+      handlePaste: (view, event) => {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            if (!file) continue;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const base64 = e.target?.result as string;
+              if (base64 && view.state) {
+                const { schema } = view.state;
+                const imageNode = schema.nodes.image?.create({ src: base64 });
+                if (imageNode) {
+                  const tr = view.state.tr.replaceSelectionWith(imageNode);
+                  view.dispatch(tr);
+                }
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
+        }
+        return false;
+      },
+      handleDrop: (view, event) => {
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) return false;
+
+        for (const file of files) {
+          if (file.type.startsWith('image/')) {
+            event.preventDefault();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const base64 = e.target?.result as string;
+              if (base64 && view.state) {
+                const { schema } = view.state;
+                const imageNode = schema.nodes.image?.create({ src: base64 });
+                if (imageNode) {
+                  const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                  if (pos) {
+                    const tr = view.state.tr.insert(pos.pos, imageNode);
+                    view.dispatch(tr);
+                  }
+                }
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
+        }
+        return false;
+      },
     },
   });
 
-  // Sync content prop → editor when file changes
-  useEffect(() => {
-    if (editor && content !== undefined) {
-      // Only update if content is actually different from current editor content
-      const currentContent = editor.getHTML();
-      if (currentContent !== content) {
-        editor.commands.setContent(content, { emitUpdate: false });
-      }
-    }
-  }, [editor, content]);
+  // NO content sync useEffect here!
+  // The key={activeFileId} in App.tsx remounts this component on file switch,
+  // so the `content` prop is only used as initial content. During editing,
+  // TipTap manages its own internal state. Re-syncing content from props
+  // during editing causes a destructive loop that kills tables/links/images.
 
   useEffect(() => {
     if (editorRef) {

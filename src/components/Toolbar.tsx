@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Editor } from '@tiptap/core';
+import LinkDialog from './LinkDialog';
+import TableDialog from './TableDialog';
+import TableToolbar from './TableToolbar';
 
 interface ToolbarProps {
   editor: Editor | null;
@@ -15,6 +18,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onImportFile,
 }) => {
   const [exportOpen, setExportOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [selectedText, setSelectedText] = useState('');
   const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,29 +61,52 @@ const Toolbar: React.FC<ToolbarProps> = ({
       return;
     }
 
-    const url = window.prompt('Enter URL:');
-    if (!url) return;
-
+    // Get selected text for the dialog
     const { from, to } = editor.state.selection;
-    if (from === to) {
-      // No text selected — insert the URL as both text and link
+    const selected = from !== to ? editor.state.doc.textBetween(from, to) : '';
+    setSelectedText(selected);
+    setLinkDialogOpen(true);
+  };
+
+  const handleLinkSubmit = (url: string, text: string) => {
+    if (!editor) return;
+    setLinkDialogOpen(false);
+
+    const displayText = text || url;
+    const { from, to } = editor.state.selection;
+
+    if (from === to || !text) {
+      // No selection or custom text — insert new link text
       editor
         .chain()
         .focus()
-        .insertContent(`<a href="${url}">${url}</a>`)
+        .insertContent(`<a href="${url}">${displayText}</a>`)
         .run();
     } else {
+      // Text is selected — wrap it with the link
       editor.chain().focus().setLink({ href: url }).run();
     }
   };
 
   const handleImage = () => {
     if (!editor) return;
-    const url = window.prompt('Enter image URL:');
-    if (!url) return;
-
-    const alt = window.prompt('Enter alt text (optional):', '') || '';
-    editor.chain().focus().setImage({ src: url, alt }).run();
+    // Use a hidden file input instead of window.prompt
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        if (base64) {
+          editor.chain().focus().setImage({ src: base64 }).run();
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
   };
 
   if (!editor) {
@@ -85,6 +114,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   }
 
   return (
+    <>
     <div className="toolbar">
       {/* Group 1 — Heading Select */}
       <div className="toolbar-group">
@@ -110,7 +140,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('bold') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleBold().run()}
-          title="Bold (Ctrl+B)"
+          data-tooltip="Bold (Ctrl+B)"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
@@ -121,7 +151,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('italic') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          title="Italic (Ctrl+I)"
+          data-tooltip="Italic (Ctrl+I)"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="4" x2="10" y2="4" />
@@ -133,7 +163,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('underline') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
-          title="Underline (Ctrl+U)"
+          data-tooltip="Underline (Ctrl+U)"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3" />
@@ -144,7 +174,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('strike') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          title="Strikethrough"
+          data-tooltip="Strikethrough"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M16 4c-.5-1.5-2.5-3-5-3-3 0-5 2-5 4 0 1.5.5 2.5 2 3.5" />
@@ -156,7 +186,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('highlight') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleHighlight().run()}
-          title="Highlight"
+          data-tooltip="Highlight"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M15.5 4.5l4 4L8 20H4v-4L15.5 4.5z" />
@@ -172,7 +202,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('bulletList') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          title="Bullet List"
+          data-tooltip="Bullet List"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <line x1="9" y1="6" x2="20" y2="6" />
@@ -187,7 +217,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('orderedList') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          title="Ordered List"
+          data-tooltip="Ordered List"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <line x1="10" y1="6" x2="20" y2="6" />
@@ -202,7 +232,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('taskList') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleTaskList().run()}
-          title="Task List"
+          data-tooltip="Task List"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="6" height="6" rx="1" />
@@ -221,7 +251,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive({ textAlign: 'left' }) ? 'active' : ''}`}
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
-          title="Align Left"
+          data-tooltip="Align Left"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="6" x2="21" y2="6" />
@@ -233,7 +263,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive({ textAlign: 'center' }) ? 'active' : ''}`}
           onClick={() => editor.chain().focus().setTextAlign('center').run()}
-          title="Align Center"
+          data-tooltip="Align Center"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="6" x2="21" y2="6" />
@@ -245,7 +275,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive({ textAlign: 'right' }) ? 'active' : ''}`}
           onClick={() => editor.chain().focus().setTextAlign('right').run()}
-          title="Align Right"
+          data-tooltip="Align Right"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="6" x2="21" y2="6" />
@@ -262,7 +292,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('codeBlock') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          title="Code Block"
+          data-tooltip="Code Block"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="16 18 22 12 16 6" />
@@ -273,7 +303,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('blockquote') ? 'active' : ''}`}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          title="Blockquote"
+          data-tooltip="Blockquote"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.76-2.017-2-2H5c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2z" />
@@ -284,7 +314,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className="toolbar-btn"
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          title="Horizontal Rule"
+          data-tooltip="Horizontal Rule"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="12" x2="21" y2="12" />
@@ -294,7 +324,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`toolbar-btn ${editor.isActive('link') ? 'active' : ''}`}
           onClick={handleLink}
-          title="Link"
+          data-tooltip="Link"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
@@ -305,7 +335,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className="toolbar-btn"
           onClick={handleImage}
-          title="Image"
+          data-tooltip="Image"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -316,14 +346,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
         <button
           className="toolbar-btn"
-          onClick={() =>
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run()
-          }
-          title="Table"
+          onClick={() => setTableDialogOpen(true)}
+          data-tooltip="Table"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -342,7 +366,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className="toolbar-btn"
           onClick={() => editor.chain().focus().undo().run()}
-          title="Undo"
+          data-tooltip="Undo"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="1 4 1 10 7 10" />
@@ -353,7 +377,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className="toolbar-btn"
           onClick={() => editor.chain().focus().redo().run()}
-          title="Redo"
+          data-tooltip="Redo"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="23 4 23 10 17 10" />
@@ -367,7 +391,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className="toolbar-btn"
           onClick={onImportFile}
-          title="Import File"
+          data-tooltip="Import File"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -380,7 +404,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             className="toolbar-btn"
             onClick={() => setExportOpen((prev) => !prev)}
-            title="Export"
+            data-tooltip="Export"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -413,6 +437,24 @@ const Toolbar: React.FC<ToolbarProps> = ({
         </div>
       </div>
     </div>
+
+    <TableToolbar editor={editor} />
+
+    <LinkDialog
+      isOpen={linkDialogOpen}
+      initialText={selectedText}
+      onSubmit={handleLinkSubmit}
+      onClose={() => setLinkDialogOpen(false)}
+    />
+    <TableDialog
+      isOpen={tableDialogOpen}
+      onSubmit={(rows, cols) => {
+        setTableDialogOpen(false);
+        editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+      }}
+      onClose={() => setTableDialogOpen(false)}
+    />
+    </>
   );
 };
 
