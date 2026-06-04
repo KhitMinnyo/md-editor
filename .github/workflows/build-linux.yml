@@ -62,7 +62,7 @@ jobs:
           npm install
 
       - name: Build Tauri app
-        run: npx --package=@tauri-apps/cli tauri build
+        run: npx --package=@tauri-apps/cli tauri build --bundles deb
 
       - name: Find and upload .deb
         uses: actions/upload-artifact@v4
