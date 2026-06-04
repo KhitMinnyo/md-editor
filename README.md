@@ -5,7 +5,7 @@
 <h1 align="center">MD Editor</h1>
 
 <p align="center">
-  <strong>A beautiful, fast, and lightweight Markdown editor for macOS and Linux</strong>
+  <strong>A beautiful, fast, and lightweight Markdown editor for macOS, Windows, and Linux</strong>
 </p>
 
 <p align="center">
@@ -32,6 +32,7 @@
 - 💾 **Auto-save** — Changes are automatically saved as you type
 - 📤 **Export** — Export as `.md` or `.html`
 - 🍎 **Universal macOS Binary** — Runs natively on both Apple Silicon (M1/M2/M3) and Intel Macs
+- 🪟 **Windows Support** — Available as `.exe` installer for `x64` and `ARM64`
 - 🐧 **Linux Support** — Available as `.deb` packages for `amd64` and `arm64` (Kali, Ubuntu, Debian)
 - ⚡ **Blazing Fast** — Built with Tauri v2 + Rust backend, app launches in under 1 second
 - 🔒 **Privacy First** — All files stay on your machine. No cloud, no telemetry, no tracking
@@ -51,6 +52,15 @@
 > ```bash
 > xattr -cr /Applications/MD\ Editor.app
 > ```
+
+### Windows
+
+1. Download the `.exe` installer for your architecture from [Releases](https://github.com/KhitMinnyo/md-editor/releases/latest):
+   - `MD Editor_x.x.x_x64-setup.exe` — Intel/AMD 64-bit
+   - `MD Editor_x.x.x_arm64-setup.exe` — ARM 64-bit (Snapdragon, etc.)
+
+2. Run the installer and follow the prompts
+3. Launch **MD Editor** from the Start Menu
 
 ### Linux (Kali / Ubuntu / Debian)
 
@@ -124,8 +134,14 @@ npm run tauri build
 # macOS Universal (Intel + Apple Silicon)
 npx tauri build --target universal-apple-darwin
 
+# Windows x64
+npx tauri build --bundles nsis --target x86_64-pc-windows-msvc
+
+# Windows ARM64 (cross-compile from x64)
+npx tauri build --bundles nsis --target aarch64-pc-windows-msvc
+
 # Linux (on native machine)
-npx tauri build
+npx tauri build --bundles deb
 ```
 
 ---

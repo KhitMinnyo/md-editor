@@ -14,6 +14,17 @@ env:
 
 jobs:
   build-exe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rust-target: x86_64-pc-windows-msvc
+            bundle-path: src-tauri/target/release/bundle/nsis/*.exe
+          - arch: arm64
+            rust-target: aarch64-pc-windows-msvc
+            bundle-path: src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/*.exe
+
     runs-on: windows-latest
 
     steps:
@@ -27,6 +38,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -39,18 +52,18 @@ jobs:
           npm install
 
       - name: Build Tauri app
-        run: npx --package=@tauri-apps/cli tauri build --bundles nsis
+        run: npx --package=@tauri-apps/cli tauri build --bundles nsis --target ${{ matrix.rust-target }}
 
       - name: Debug - List bundle output
         run: |
-          echo "=== Listing src-tauri/target/release/bundle/ ==="
-          Get-ChildItem -Recurse src-tauri/target/release/bundle/ -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          echo "=== Listing src-tauri/target/ bundle directories ==="
+          Get-ChildItem -Recurse src-tauri/target/ -Filter *.exe -ErrorAction SilentlyContinue | Where-Object { $_.FullName -like '*bundle*' } | ForEach-Object { $_.FullName }
 
       - name: Upload .exe installer
         uses: actions/upload-artifact@v4
         with:
-          name: md-editor-windows-exe
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          name: md-editor-${{ matrix.arch }}-exe
+          path: ${{ matrix.bundle-path }}
           if-no-files-found: error
 
   release:
