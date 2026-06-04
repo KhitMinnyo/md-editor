@@ -8,17 +8,7 @@
   <strong>A beautiful, fast, and lightweight Markdown editor for macOS, Windows, and Linux</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/KhitMinnyo/md-editor/releases/latest">
-    <img src="https://img.shields.io/github/v/release/KhitMinnyo/md-editor?style=flat-square&color=blue" alt="Latest Release">
-  </a>
-  <a href="https://github.com/KhitMinnyo/md-editor/releases/latest">
-    <img src="https://img.shields.io/github/downloads/KhitMinnyo/md-editor/total?style=flat-square&color=green" alt="Downloads">
-  </a>
-  <a href="https://github.com/KhitMinnyo/md-editor/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/KhitMinnyo/md-editor?style=flat-square" alt="License">
-  </a>
-</p>
+
 
 ---
 
