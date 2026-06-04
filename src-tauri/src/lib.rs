@@ -58,6 +58,7 @@ pub fn run() {
 
   app.run(|app_handle, event| {
     match &event {
+      #[cfg(target_os = "macos")]
       tauri::RunEvent::Opened { urls } => {
         let file_paths: Vec<String> = urls
           .iter()
@@ -83,7 +84,9 @@ pub fn run() {
         // Emit event to frontend
         let _ = app_handle.emit("file-open", &file_paths);
       }
-      _ => {}
+      _ => {
+        let _ = &app_handle; // suppress unused warning on non-macOS
+      }
     }
   });
 }
