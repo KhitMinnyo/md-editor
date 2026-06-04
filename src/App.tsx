@@ -3,6 +3,7 @@ import { Editor } from '@tiptap/core';
 import Sidebar from './components/Sidebar';
 import Toolbar from './components/Toolbar';
 import EditorComponent from './components/Editor';
+import PdfViewer from './components/PdfViewer';
 import StatusBar from './components/StatusBar';
 import type { MdFile, FileTreeNode } from './utils/fileManager';
 import {
@@ -22,6 +23,7 @@ import {
   createAutoSave,
   isMarkdownFile,
   isBinaryFile,
+  isPdfFile,
   getFileExtension,
 } from './utils/fileManager';
 import {
@@ -437,6 +439,13 @@ export default function App() {
         />
         {activeFile ? (
           isBinaryFile(activeFile.name) ? (
+            isPdfFile(activeFile.name) ? (
+              <PdfViewer
+                key={activeFileId}
+                filePath={activeFile.id}
+                fileName={activeFile.name}
+              />
+            ) : (
             <div className="editor-container">
               <div className="empty-state fade-in">
                 <div className="empty-state-icon">📦</div>
@@ -448,6 +457,7 @@ export default function App() {
                 </p>
               </div>
             </div>
+            )
           ) : (
             <EditorComponent
               key={activeFileId}

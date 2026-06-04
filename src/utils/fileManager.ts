@@ -61,6 +61,10 @@ export function isBinaryFile(filename: string): boolean {
   return !isTextFile(filename) && getFileExtension(filename) !== '';
 }
 
+export function isPdfFile(filename: string): boolean {
+  return getFileExtension(filename) === 'pdf';
+}
+
 /**
  * Check if running inside Tauri.
  */

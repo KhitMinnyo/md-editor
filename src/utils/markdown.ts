@@ -15,6 +15,45 @@ const turndown = new TurndownService({
   strongDelimiter: '**',
 });
 
+// Keep table HTML tags so they survive the round-trip (TipTap tables → Markdown → TipTap).
+// Turndown strips unknown tags by default; these rules preserve them as raw HTML in the markdown.
+turndown.addRule('tableCell', {
+  filter: ['th', 'td'],
+  replacement: function (content, node) {
+    const tag = node.nodeName.toLowerCase();
+    const trimmed = content.trim().replace(/\n/g, ' ');
+    return `<${tag}>${trimmed}</${tag}>`;
+  },
+});
+
+turndown.addRule('tableRow', {
+  filter: 'tr',
+  replacement: function (content) {
+    return `<tr>${content}</tr>\n`;
+  },
+});
+
+turndown.addRule('tableHead', {
+  filter: 'thead',
+  replacement: function (content) {
+    return `<thead>${content}</thead>\n`;
+  },
+});
+
+turndown.addRule('tableBody', {
+  filter: 'tbody',
+  replacement: function (content) {
+    return `<tbody>${content}</tbody>\n`;
+  },
+});
+
+turndown.addRule('table', {
+  filter: 'table',
+  replacement: function (content) {
+    return `\n<table>${content}</table>\n\n`;
+  },
+});
+
 // Configure marked (Markdown → HTML)
 marked.setOptions({
   gfm: true,

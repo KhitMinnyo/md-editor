@@ -35,7 +35,10 @@ export default function EditorComponent({ content, onUpdate, editorRef }: Editor
       CodeBlockLowlight.configure({
         lowlight,
       }),
-      Image,
+      Image.configure({
+        inline: false,
+        allowBase64: true,
+      }),
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -53,7 +56,12 @@ export default function EditorComponent({ content, onUpdate, editorRef }: Editor
         nested: true,
       }),
       Typography,
-      Table,
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: {
+          class: 'tiptap-table',
+        },
+      }),
       TableRow,
       TableCell,
       TableHeader,

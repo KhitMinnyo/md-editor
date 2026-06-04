@@ -48,8 +48,25 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   const handleLink = () => {
     if (!editor) return;
+
+    // If already on a link, unset it
+    if (editor.isActive('link')) {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+
     const url = window.prompt('Enter URL:');
-    if (url) {
+    if (!url) return;
+
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      // No text selected — insert the URL as both text and link
+      editor
+        .chain()
+        .focus()
+        .insertContent(`<a href="${url}">${url}</a>`)
+        .run();
+    } else {
       editor.chain().focus().setLink({ href: url }).run();
     }
   };
@@ -57,9 +74,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const handleImage = () => {
     if (!editor) return;
     const url = window.prompt('Enter image URL:');
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
-    }
+    if (!url) return;
+
+    const alt = window.prompt('Enter alt text (optional):', '') || '';
+    editor.chain().focus().setImage({ src: url, alt }).run();
   };
 
   if (!editor) {
