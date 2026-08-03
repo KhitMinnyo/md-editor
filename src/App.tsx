@@ -49,7 +49,6 @@ import {
   type Frontmatter,
 } from './utils/markdown';
 import { getSettings, saveSettings, type AppSettings } from './utils/settings';
-import { checkForUpdates } from './utils/updater';
 
 type Theme = 'light' | 'dark';
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
@@ -65,7 +64,6 @@ export default function App() {
   // Settings
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--editor-max-width', `${settings.editorMaxWidth}px`);
@@ -74,12 +72,6 @@ export default function App() {
   const handleSaveSettings = useCallback((next: AppSettings) => {
     setSettings(next);
     saveSettings(next);
-  }, []);
-
-  const handleCheckForUpdates = useCallback(async () => {
-    setUpdateStatus('Update ရှိမရှိ စစ်ဆေးနေသည်...');
-    const result = await checkForUpdates();
-    setUpdateStatus(result);
   }, []);
 
   // Folder & Files
@@ -825,8 +817,6 @@ export default function App() {
         settings={settings}
         onSave={handleSaveSettings}
         onClose={() => setSettingsOpen(false)}
-        onCheckForUpdates={handleCheckForUpdates}
-        updateStatus={updateStatus}
       />
     </div>
   );

@@ -4,6 +4,14 @@ All notable changes to MD Editor are documented in this file.
 
 ## [Unreleased]
 
+### Removed
+- Auto-update scaffolding (`tauri-plugin-updater`, `tauri-plugin-process`,
+  `Settings → Check for Updates`). It was never fully wired up (no signing
+  key configured in `tauri.conf.json`), and registering the updater plugin
+  without a `plugins.updater` config block is a plausible cause of the app
+  failing to launch on some machines. Removed rather than fixed further,
+  since it wasn't functional anyway.
+
 ## [0.1.2] - 2026-08-03
 
 ### Added

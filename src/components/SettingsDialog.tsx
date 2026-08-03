@@ -6,8 +6,6 @@ interface SettingsDialogProps {
   settings: AppSettings;
   onSave: (settings: AppSettings) => void;
   onClose: () => void;
-  onCheckForUpdates: () => void;
-  updateStatus: string | null;
 }
 
 export default function SettingsDialog({
@@ -15,8 +13,6 @@ export default function SettingsDialog({
   settings,
   onSave,
   onClose,
-  onCheckForUpdates,
-  updateStatus,
 }: SettingsDialogProps) {
   const [draft, setDraft] = useState<AppSettings>(settings);
 
@@ -71,19 +67,9 @@ export default function SettingsDialog({
 
         <div className="dialog-field">
           <label className="dialog-label">Version</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
-              v{__APP_VERSION__}
-            </span>
-            <button type="button" className="dialog-btn dialog-btn-cancel" onClick={onCheckForUpdates}>
-              Check for Updates
-            </button>
-          </div>
-          {updateStatus && (
-            <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '6px' }}>
-              {updateStatus}
-            </p>
-          )}
+          <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+            v{__APP_VERSION__}
+          </span>
         </div>
 
         <div className="dialog-actions">

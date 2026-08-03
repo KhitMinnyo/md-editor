@@ -52,8 +52,6 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",
-    "dialog:allow-confirm",
-    "updater:default",
-    "process:allow-restart"
+    "dialog:allow-confirm"
   ]
 }

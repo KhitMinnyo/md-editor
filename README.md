@@ -103,30 +103,6 @@ If you're building a fork that only needs to touch a fixed directory (e.g. `$APP
 
 ---
 
-## 🔄 Auto-Update Setup (scaffolded, not fully wired yet)
-
-The `@tauri-apps/plugin-updater` / `tauri-plugin-updater` dependencies are installed and registered (see `src-tauri/src/lib.rs`), and `Settings → Check for Updates` calls into them — but the actual update *channel* (signing keypair + release endpoint) isn't configured yet, since generating a real keypair needs to happen on a machine with network access. Until it is, "Check for Updates" reports that auto-update isn't fully configured rather than erroring.
-
-To finish wiring it up:
-
-1. Generate a signing keypair: `npx tauri signer generate -w ~/.tauri/md-editor.key` (do this once, keep the private key safe).
-2. Add a `plugins.updater` block to `src-tauri/tauri.conf.json` with the printed public key and a release endpoint, e.g.:
-   ```json
-   "plugins": {
-     "updater": {
-       "pubkey": "<paste the public key here>",
-       "endpoints": [
-         "https://github.com/KhitMinnyo/md-editor/releases/latest/download/latest.json"
-       ]
-     }
-   }
-   ```
-3. In the GitHub repo's **Settings → Secrets and variables → Actions**, add:
-   - `TAURI_SIGNING_PRIVATE_KEY` — contents of the private key file generated in step 1
-   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the password you set for it (if any)
-4. The three build workflows (`build-macos.yml`, `build-windows.yml`, `build-linux.yml`) already pass these through as env vars to `tauri build`, and are inert (build unsigned, as today) if the secrets aren't set — so this is safe to leave undone until you're ready.
-5. You'll also need a small workflow step (or a separate job) that generates and uploads a `latest.json` manifest alongside each release — `tauri build` emits per-target update artifacts once signing is configured; see [Tauri's updater CI docs](https://v2.tauri.app/plugin/updater/#build-and-release) for the exact manifest format GitHub Releases needs.
-
 ## 🍎 macOS Codesigning & Notarization (scaffolded, not fully wired yet)
 
 `build-macos.yml` already passes through the standard Apple codesigning env vars to `tauri build` (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) — `tauri build` signs and notarizes automatically when they're present, and just produces an unsigned build (today's behavior, requiring the `xattr -cr` workaround) when they're empty.
