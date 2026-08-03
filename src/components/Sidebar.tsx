@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { MdFile, FileTreeNode, RecentFile, SearchMatch } from '../utils/fileManager';
 import { isTauri, isMarkdownFile, isBinaryFile } from '../utils/fileManager';
+import type { TagIndexEntry } from '../utils/markdown';
 
 interface RowActions {
   openMenuPath: string | null;
@@ -490,6 +491,71 @@ function SearchResults({
   );
 }
 
+// ─── Tags Panel ────────────────────────────────────────
+// Browse files by frontmatter `tags:` — a tag cloud that drills into a
+// date-sorted file list, so the Title/Tags/Date metadata bar is actually
+// useful for something inside the app, not just stored inertly in the file.
+function TagsPanel({
+  tagIndex,
+  loading,
+  selectedTag,
+  onSelectTag,
+  onBack,
+  onSelectFile,
+}: {
+  tagIndex: TagIndexEntry[];
+  loading: boolean;
+  selectedTag: string | null;
+  onSelectTag: (tag: string) => void;
+  onBack: () => void;
+  onSelectFile: (id: string) => void;
+}) {
+  if (loading) {
+    return <div className="empty-state"><span className="empty-state-text">Scanning tags...</span></div>;
+  }
+
+  if (!selectedTag) {
+    if (tagIndex.length === 0) {
+      return (
+        <div className="empty-state">
+          <span className="empty-state-text">
+            No tags yet. Add a <code>Tags</code> field in the metadata bar above the editor.
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="tag-list">
+        {tagIndex.map(({ tag, files }) => (
+          <button key={tag} className="tag-pill" onClick={() => onSelectTag(tag)}>
+            {tag}
+            <span className="tag-pill-count">{files.length}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const entry = tagIndex.find((t) => t.tag === selectedTag);
+  return (
+    <>
+      <button className="tag-back-btn" onClick={onBack}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+          strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        All tags
+      </button>
+      {(entry?.files ?? []).map((f) => (
+        <div key={f.fileId} className="search-result-item" onClick={() => onSelectFile(f.fileId)}>
+          <div className="search-result-file">{f.title || f.fileName}</div>
+          {f.date && <div className="tag-file-date">{f.date}</div>}
+        </div>
+      ))}
+    </>
+  );
+}
+
 // ─── Main Sidebar ────────────────────────────────────────
 interface SidebarProps {
   files: MdFile[];
@@ -505,6 +571,7 @@ interface SidebarProps {
   recentFiles: RecentFile[];
   onRemoveRecentFile: (id: string) => void;
   onSearch: (query: string) => Promise<SearchMatch[]>;
+  onLoadTags: () => Promise<TagIndexEntry[]>;
   onOpenSettings: () => void;
 }
 
@@ -522,6 +589,7 @@ function Sidebar({
   recentFiles,
   onRemoveRecentFile,
   onSearch,
+  onLoadTags,
   onOpenSettings,
 }: SidebarProps) {
   const [isCreating, setIsCreating] = useState<boolean>(false);
@@ -540,6 +608,12 @@ function Sidebar({
   const [searchResults, setSearchResults] = useState<SearchMatch[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Tags (browse files by frontmatter Tags/Date)
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [tagIndex, setTagIndex] = useState<TagIndexEntry[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   useEffect(() => {
     if (isCreating && inputRef.current) {
@@ -566,6 +640,16 @@ function Sidebar({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, searchOpen]);
+
+  useEffect(() => {
+    if (!tagsOpen) return;
+    setSelectedTag(null);
+    setTagsLoading(true);
+    onLoadTags()
+      .then(setTagIndex)
+      .finally(() => setTagsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagsOpen]);
 
   const handleSubmit = () => {
     const trimmed = newFileName.trim();
@@ -657,13 +741,32 @@ function Sidebar({
           {isTauri() && useTree && (
             <button
               className="icon-btn"
-              onClick={() => setSearchOpen((v) => !v)}
+              onClick={() => {
+                setSearchOpen((v) => !v);
+                setTagsOpen(false);
+              }}
               title="Search files"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
                 strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </button>
+          )}
+          {isTauri() && useTree && (
+            <button
+              className="icon-btn"
+              onClick={() => {
+                setTagsOpen((v) => !v);
+                setSearchOpen(false);
+              }}
+              title="Browse by tag"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.17H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.82 0l4.6-4.6a2 2 0 0 0 0-2.82Z" />
+                <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
               </svg>
             </button>
           )}
@@ -712,8 +815,22 @@ function Sidebar({
         </div>
       )}
 
+      {/* Tags panel */}
+      {tagsOpen && useTree && (
+        <div className="file-list">
+          <TagsPanel
+            tagIndex={tagIndex}
+            loading={tagsLoading}
+            selectedTag={selectedTag}
+            onSelectTag={setSelectedTag}
+            onBack={() => setSelectedTag(null)}
+            onSelectFile={onSelectFile}
+          />
+        </div>
+      )}
+
       {/* Folder breadcrumb */}
-      {!searchOpen && folderDisplayName && (
+      {!searchOpen && !tagsOpen && folderDisplayName && (
         <div style={{
           padding: '4px 20px 4px',
           fontSize: 'var(--font-size-xs)',
@@ -737,7 +854,7 @@ function Sidebar({
       <div className="sidebar-divider" />
 
       {/* New file / folder form (root level) */}
-      {!searchOpen && isCreating && (
+      {!searchOpen && !tagsOpen && isCreating && (
         <div className="new-file-form">
           <input
             ref={inputRef}
@@ -753,6 +870,7 @@ function Sidebar({
       )}
 
       {/* File list / Tree view / Search results */}
+      {!tagsOpen && (
       <div className="file-list">
         {searchOpen ? (
           <SearchResults matches={searchResults} loading={searchLoading} onSelect={onSelectFile} />
@@ -825,9 +943,10 @@ function Sidebar({
           </>
         )}
       </div>
+      )}
 
       {/* Root-level "new folder" quick action */}
-      {!searchOpen && useTree && (
+      {!searchOpen && !tagsOpen && useTree && (
         <div className="sidebar-footer">
           <button
             className="icon-btn"

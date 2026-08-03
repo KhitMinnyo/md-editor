@@ -46,7 +46,9 @@ import {
   importMarkdownFileBrowser,
   parseFrontmatter,
   serializeFrontmatter,
+  scanFrontmatterIndex,
   type Frontmatter,
+  type TagIndexEntry,
 } from './utils/markdown';
 import { getSettings, saveSettings, type AppSettings } from './utils/settings';
 
@@ -483,6 +485,12 @@ export default function App() {
     [treeNodes],
   );
 
+  // Build the frontmatter Tags index for the sidebar's Tags panel.
+  const handleLoadTags = useCallback(
+    (): Promise<TagIndexEntry[]> => scanFrontmatterIndex(treeNodes),
+    [treeNodes],
+  );
+
   // Save a pasted/dropped image as a real file under assets/, next to the
   // current document, instead of inlining it as base64.
   const handleImageFile = useCallback(async (file: File): Promise<SavedImage | null> => {
@@ -730,6 +738,7 @@ export default function App() {
         recentFiles={recentFiles}
         onRemoveRecentFile={handleRemoveRecentFile}
         onSearch={handleSearch}
+        onLoadTags={handleLoadTags}
         onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="main-content">

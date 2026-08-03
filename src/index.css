@@ -347,6 +347,60 @@ body {
   margin-top: 2px;
 }
 
+/* Tags panel */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border: none;
+  transition: background var(--transition-fast);
+}
+
+.tag-pill:hover {
+  background: var(--color-bg-hover);
+}
+
+.tag-pill-count {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.tag-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.tag-back-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.tag-file-date {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
 /* Sidebar footer (new-folder quick action) */
 .sidebar-footer {
   padding: var(--space-2) var(--space-3);

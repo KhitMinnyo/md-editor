@@ -5,7 +5,8 @@
 import TurndownService from 'turndown';
 import { marked } from 'marked';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { isTauri, saveFileDialog } from './fileManager';
+import { readTextFile } from '@tauri-apps/plugin-fs';
+import { isTauri, saveFileDialog, type FileTreeNode } from './fileManager';
 
 // Configure Turndown (HTML → Markdown)
 const turndown = new TurndownService({
@@ -146,6 +147,75 @@ export function serializeFrontmatter(frontmatter: Frontmatter | null, body: stri
     .map(([key, value]) => `${key}: ${value}`);
   if (lines.length === 0) return body;
   return `---\n${lines.join('\n')}\n---\n\n${body.replace(/^\r?\n+/, '')}`;
+}
+
+export interface TaggedFile {
+  fileId: string;
+  fileName: string;
+  title?: string;
+  date?: string;
+}
+
+export interface TagIndexEntry {
+  tag: string;
+  files: TaggedFile[];
+}
+
+/**
+ * Walk a folder tree, read every Markdown file's frontmatter, and group
+ * files by their `tags` field (comma-separated). Used to power the
+ * sidebar's Tags panel — lets you browse files by tag/date without
+ * leaving the app, instead of the frontmatter block just sitting inert
+ * in each file.
+ */
+export async function scanFrontmatterIndex(nodes: FileTreeNode[]): Promise<TagIndexEntry[]> {
+  const tagMap = new Map<string, TaggedFile[]>();
+
+  async function walk(list: FileTreeNode[]): Promise<void> {
+    for (const node of list) {
+      if (node.isDir && node.children) {
+        await walk(node.children);
+        continue;
+      }
+      if (node.isDir || !/\.(md|markdown)$/i.test(node.name)) continue;
+
+      let content: string;
+      try {
+        content = await readTextFile(node.path);
+      } catch {
+        continue;
+      }
+
+      const { frontmatter } = parseFrontmatter(content);
+      const tagsRaw = frontmatter?.tags;
+      if (!tagsRaw) continue;
+
+      const tags = tagsRaw.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tags.length === 0) continue;
+
+      const entry: TaggedFile = {
+        fileId: node.path,
+        fileName: node.name,
+        title: frontmatter?.title || undefined,
+        date: frontmatter?.date || undefined,
+      };
+      for (const tag of tags) {
+        const key = tag.toLowerCase();
+        if (!tagMap.has(key)) tagMap.set(key, []);
+        tagMap.get(key)!.push(entry);
+      }
+    }
+  }
+
+  await walk(nodes);
+
+  return Array.from(tagMap.entries())
+    .map(([tag, files]) => ({
+      tag,
+      // Newest-dated files first; undated files sort last.
+      files: files.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')),
+    }))
+    .sort((a, b) => a.tag.localeCompare(b.tag));
 }
 
 /**
