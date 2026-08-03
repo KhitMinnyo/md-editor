@@ -580,9 +580,17 @@ export default function App() {
         const off = await appWindow.onCloseRequested(async (event) => {
           if (pendingHtmlRef.current) {
             // Hold the window open just long enough to persist the edit.
+            // If the save fails for any reason, still destroy() in `finally`
+            // — otherwise preventDefault() above leaves the window stuck
+            // open forever with no way to close it.
             event.preventDefault();
-            await flushPendingSave();
-            await appWindow.destroy();
+            try {
+              await flushPendingSave();
+            } catch (err) {
+              console.error('Failed to flush pending save before close:', err);
+            } finally {
+              await appWindow.destroy();
+            }
           }
         });
         if (cancelled) {
