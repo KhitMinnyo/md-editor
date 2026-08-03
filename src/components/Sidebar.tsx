@@ -735,10 +735,9 @@ function Sidebar({
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon-stack">
-            <img src="/app-icon.png" alt="" className="sidebar-logo-img" />
+            <img src="/app-icon.png" alt="MD Editor" className="sidebar-logo-img" />
             <span className="sidebar-logo-version">v{__APP_VERSION__}</span>
           </div>
-          MD Editor
         </div>
         <div className="sidebar-actions">
           {isTauri() && useTree && (
