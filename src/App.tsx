@@ -564,57 +564,31 @@ export default function App() {
     [activeFileId, flushPendingSave, settings.autoSaveDelayMs],
   );
 
-  // Flush any pending debounced save before the window/app actually closes,
-  // so edits made right before quitting aren't lost.
+  // Browser/dev fallback: best-effort synchronous flush to localStorage
+  // before the tab/window unloads.
+  //
+  // NOTE: there is deliberately no Tauri-side onCloseRequested handler here.
+  // Two earlier attempts (blocking close until the flush finished, then a
+  // non-blocking "fire and forget" version) both resulted in the native
+  // close (red traffic-light) button doing nothing at all when clicked,
+  // even though it never called event.preventDefault(). Registering *any*
+  // close-requested listener seems to be enough to break the native close
+  // in this app's build — so we don't register one. This means up to
+  // `autoSaveDelayMs` (default 600ms) of typing right before quitting could
+  // be lost, which is a far better tradeoff than an app that can't be
+  // closed. If this needs revisiting, test any onCloseRequested change by
+  // clicking the red close button specifically (not Cmd+Q / Dock Quit,
+  // which don't go through this handler and kept working the whole time).
   useEffect(() => {
-    if (!isTauri()) {
-      // Browser/dev fallback: best-effort synchronous flush to localStorage.
-      const handleBeforeUnload = () => {
-        if (pendingHtmlRef.current && activeFileIdRef.current) {
-          saveFile(activeFileIdRef.current, pendingHtmlRef.current);
-        }
-      };
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }
-
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const appWindow = getCurrentWindow();
-        const off = await appWindow.onCloseRequested(() => {
-          // Deliberately never call event.preventDefault() here. An earlier
-          // version blocked the close until the pending save finished (or
-          // failed), which could leave the window permanently unclosable
-          // if that save hung or errored for any reason — worse than the
-          // data-loss risk it was guarding against. Best-effort: fire the
-          // flush in the background and let the close proceed immediately
-          // either way. The debounced auto-save already covers the common
-          // case; this just shaves off the last <1s of typing before quit.
-          if (pendingHtmlRef.current) {
-            flushPendingSave().catch((err) =>
-              console.error('Failed to flush pending save before close:', err),
-            );
-          }
-        });
-        if (cancelled) {
-          off();
-        } else {
-          unlisten = off;
-        }
-      } catch (err) {
-        console.error('Failed to set up close handler:', err);
+    if (isTauri()) return;
+    const handleBeforeUnload = () => {
+      if (pendingHtmlRef.current && activeFileIdRef.current) {
+        saveFile(activeFileIdRef.current, pendingHtmlRef.current);
       }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (unlisten) unlisten();
     };
-  }, [flushPendingSave]);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   // Export
   const handleExportMarkdown = useCallback(async () => {
