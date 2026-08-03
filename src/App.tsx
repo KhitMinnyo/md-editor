@@ -585,20 +585,19 @@ export default function App() {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         const appWindow = getCurrentWindow();
-        const off = await appWindow.onCloseRequested(async (event) => {
+        const off = await appWindow.onCloseRequested(() => {
+          // Deliberately never call event.preventDefault() here. An earlier
+          // version blocked the close until the pending save finished (or
+          // failed), which could leave the window permanently unclosable
+          // if that save hung or errored for any reason — worse than the
+          // data-loss risk it was guarding against. Best-effort: fire the
+          // flush in the background and let the close proceed immediately
+          // either way. The debounced auto-save already covers the common
+          // case; this just shaves off the last <1s of typing before quit.
           if (pendingHtmlRef.current) {
-            // Hold the window open just long enough to persist the edit.
-            // If the save fails for any reason, still destroy() in `finally`
-            // — otherwise preventDefault() above leaves the window stuck
-            // open forever with no way to close it.
-            event.preventDefault();
-            try {
-              await flushPendingSave();
-            } catch (err) {
-              console.error('Failed to flush pending save before close:', err);
-            } finally {
-              await appWindow.destroy();
-            }
+            flushPendingSave().catch((err) =>
+              console.error('Failed to flush pending save before close:', err),
+            );
           }
         });
         if (cancelled) {
