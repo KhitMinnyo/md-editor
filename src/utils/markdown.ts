@@ -4,6 +4,7 @@
  */
 import TurndownService from 'turndown';
 import { marked } from 'marked';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { isTauri, saveFileDialog } from './fileManager';
 
 // Configure Turndown (HTML → Markdown)
@@ -54,6 +55,23 @@ turndown.addRule('table', {
   },
 });
 
+// Images saved to disk (see Editor.tsx's onImageFile / data-relative-src)
+// carry the portable relative path separately from the asset:// URL used
+// to actually display them — write the relative path back to markdown so
+// the file stays portable, instead of Turndown's default which would
+// serialize the (machine-specific, huge) asset:// URL.
+turndown.addRule('image', {
+  filter: 'img',
+  replacement: function (_content, node) {
+    const el = node as HTMLElement;
+    const relativeSrc = el.getAttribute('data-relative-src');
+    const src = relativeSrc || el.getAttribute('src') || '';
+    const alt = el.getAttribute('alt') || '';
+    if (!src) return '';
+    return `![${alt}](${src})`;
+  },
+});
+
 // Configure marked (Markdown → HTML)
 marked.setOptions({
   gfm: true,
@@ -69,9 +87,65 @@ export function htmlToMarkdown(html: string): string {
 
 /**
  * Convert Markdown string to HTML.
+ *
+ * @param baseDir - If given (and running in Tauri), relative image srcs
+ *   (e.g. `assets/foo.png`, from images saved via saveImageAsset) are
+ *   resolved against this directory and rewritten to a webview-loadable
+ *   `asset://` URL, while the original relative path is preserved in a
+ *   `data-relative-src` attribute so re-saving round-trips correctly.
  */
-export function markdownToHtml(md: string): string {
-  return marked.parse(md) as string;
+export function markdownToHtml(md: string, baseDir?: string): string {
+  const html = marked.parse(md) as string;
+  if (!baseDir || !isTauri()) return html;
+
+  return html.replace(/<img([^>]*?)\ssrc="([^"]*)"([^>]*)>/g, (match, pre, src, post) => {
+    if (!src || /^(https?:|data:|asset:|file:|\/\/)/.test(src)) return match;
+    const absolutePath = `${baseDir}/${src}`;
+    const resolvedSrc = convertFileSrc(absolutePath);
+    return `<img${pre} src="${resolvedSrc}" data-relative-src="${src}"${post}>`;
+  });
+}
+
+// =================== FRONTMATTER (YAML-lite) ===================
+// A deliberately simple flat `key: value` frontmatter block — not full
+// YAML (no nesting/arrays/quoting rules), so no extra dependency is
+// needed. Good enough for title/tags/date-style metadata.
+
+export type Frontmatter = Record<string, string>;
+
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/;
+
+/**
+ * Split a markdown file's raw content into its frontmatter block (if any)
+ * and the remaining body. Returns `frontmatter: null` when there's no
+ * leading `---` block.
+ */
+export function parseFrontmatter(md: string): { frontmatter: Frontmatter | null; body: string } {
+  const match = md.match(FRONTMATTER_RE);
+  if (!match) return { frontmatter: null, body: md };
+
+  const frontmatter: Frontmatter = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const idx = line.indexOf(':');
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (key) frontmatter[key] = value;
+  }
+  return { frontmatter, body: md.slice(match[0].length) };
+}
+
+/**
+ * Re-attach a frontmatter block to a markdown body before saving. Keys
+ * with empty values are dropped; if nothing is left, no block is written.
+ */
+export function serializeFrontmatter(frontmatter: Frontmatter | null, body: string): string {
+  if (!frontmatter) return body;
+  const lines = Object.entries(frontmatter)
+    .filter(([, value]) => value.trim() !== '')
+    .map(([key, value]) => `${key}: ${value}`);
+  if (lines.length === 0) return body;
+  return `---\n${lines.join('\n')}\n---\n\n${body.replace(/^\r?\n+/, '')}`;
 }
 
 /**

@@ -9,6 +9,9 @@ interface ToolbarProps {
   onExportMarkdown: () => void;
   onExportHtml: () => void;
   onImportFile: () => void;
+  onToggleFind: () => void;
+  onToggleOutline: () => void;
+  outlineOpen: boolean;
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -16,6 +19,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onExportMarkdown,
   onExportHtml,
   onImportFile,
+  onToggleFind,
+  onToggleOutline,
+  outlineOpen,
 }) => {
   const [exportOpen, setExportOpen] = useState(false);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
@@ -395,6 +401,37 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="23 4 23 10 17 10" />
             <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="toolbar-divider" />
+
+      {/* Group 6.5 — Find & Outline */}
+      <div className="toolbar-group">
+        <button
+          className="toolbar-btn"
+          onClick={onToggleFind}
+          data-tooltip="Find (Ctrl+F)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </button>
+
+        <button
+          className={`toolbar-btn ${outlineOpen ? 'active' : ''}`}
+          onClick={onToggleOutline}
+          data-tooltip="Outline"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" />
           </svg>
         </button>
       </div>

@@ -3,7 +3,16 @@
  * Falls back to localStorage when running in browser (dev mode without Tauri).
  * All content is stored as UTF-8 strings.
  */
-import { readTextFile, writeTextFile, readDir, remove } from '@tauri-apps/plugin-fs';
+import {
+  readTextFile,
+  writeTextFile,
+  writeFile as writeBinaryFile,
+  readDir,
+  remove,
+  rename as renamePathFs,
+  mkdir,
+  stat,
+} from '@tauri-apps/plugin-fs';
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 
 export interface MdFile {
@@ -264,6 +273,178 @@ export async function deleteFileNative(filePath: string): Promise<void> {
     return;
   }
   await remove(filePath);
+}
+
+/**
+ * Move a file into a `.trash/` folder next to it instead of deleting it
+ * outright, so an accidental delete can still be recovered from the OS
+ * file browser. Only used in Tauri mode — the browser/localStorage
+ * fallback has no real files to preserve.
+ */
+export async function trashFile(rootFolder: string, filePath: string): Promise<void> {
+  const trashDir = `${rootFolder}/.trash`;
+  try {
+    await mkdir(trashDir);
+  } catch {
+    // Already exists — fine.
+  }
+  const name = filePath.split('/').pop() || 'untitled';
+  const trashedName = `${Date.now()}-${name}`;
+  await renamePathFs(filePath, `${trashDir}/${trashedName}`);
+}
+
+// =================== RENAME / FOLDERS ===================
+
+/**
+ * Rename (or move) a file or folder.
+ */
+export async function renamePathNative(oldPath: string, newPath: string): Promise<void> {
+  if (!isTauri()) return;
+  await renamePathFs(oldPath, newPath);
+}
+
+/**
+ * Create a new folder inside dirPath.
+ */
+export async function createFolder(dirPath: string, name: string): Promise<string> {
+  const newPath = `${dirPath}/${name}`;
+  if (isTauri()) {
+    await mkdir(newPath);
+  }
+  return newPath;
+}
+
+/**
+ * Get a file/folder's last-modified time (ms since epoch), or null if it
+ * can't be determined (e.g. running in browser mode, or the path no
+ * longer exists).
+ */
+export async function getFileMtime(filePath: string): Promise<number | null> {
+  if (!isTauri()) return null;
+  try {
+    const info = await stat(filePath);
+    return info.mtime ? new Date(info.mtime).getTime() : null;
+  } catch {
+    return null;
+  }
+}
+
+// =================== IMAGE ASSETS ===================
+
+/**
+ * Save pasted/dropped image bytes as a real file under `assets/` next to
+ * the currently open document, instead of inlining it as a base64 data
+ * URL (which bloats the .md file and doesn't diff well in git).
+ * Returns the path to use as the <img src>, relative to dirPath.
+ */
+export async function saveImageAsset(
+  dirPath: string,
+  fileName: string,
+  data: Uint8Array,
+): Promise<string> {
+  const assetsDir = `${dirPath}/assets`;
+  try {
+    await mkdir(assetsDir);
+  } catch {
+    // Already exists — fine.
+  }
+  // Avoid clobbering an existing asset with the same name.
+  const uniqueName = `${Date.now()}-${fileName}`;
+  await writeBinaryFile(`${assetsDir}/${uniqueName}`, data);
+  return `assets/${uniqueName}`;
+}
+
+// =================== RECENT FILES ===================
+
+const RECENT_FILES_KEY = 'md-editor-recent-files';
+const MAX_RECENT_FILES = 10;
+
+export interface RecentFile {
+  id: string;
+  name: string;
+  openedAt: number;
+}
+
+export function getRecentFiles(): RecentFile[] {
+  try {
+    const raw = localStorage.getItem(RECENT_FILES_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as RecentFile[];
+  } catch {
+    return [];
+  }
+}
+
+export function addRecentFile(id: string, name: string): void {
+  const existing = getRecentFiles().filter((f) => f.id !== id);
+  const next = [{ id, name, openedAt: Date.now() }, ...existing].slice(0, MAX_RECENT_FILES);
+  localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next));
+}
+
+export function removeRecentFile(id: string): void {
+  const next = getRecentFiles().filter((f) => f.id !== id);
+  localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next));
+}
+
+// =================== SEARCH ===================
+
+export interface SearchMatch {
+  fileId: string;
+  fileName: string;
+  lineNumber: number;
+  snippet: string;
+}
+
+const MAX_MATCHES_PER_FILE = 5;
+const MAX_TOTAL_MATCHES = 100;
+
+/**
+ * Recursively search text/markdown files in a folder tree for a query
+ * string (case-insensitive). Binary files are skipped. Results are
+ * capped to keep this responsive on large folders.
+ */
+export async function searchInTree(nodes: FileTreeNode[], query: string): Promise<SearchMatch[]> {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  const results: SearchMatch[] = [];
+
+  async function walk(list: FileTreeNode[]): Promise<void> {
+    for (const node of list) {
+      if (results.length >= MAX_TOTAL_MATCHES) return;
+      if (node.isDir && node.children) {
+        await walk(node.children);
+        continue;
+      }
+      if (node.isDir || !node.file) continue;
+      if (isBinaryFile(node.name)) continue;
+
+      let content: string;
+      try {
+        content = await readTextFile(node.path);
+      } catch {
+        continue;
+      }
+
+      const lines = content.split(/\r?\n/);
+      let matchesInFile = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (matchesInFile >= MAX_MATCHES_PER_FILE || results.length >= MAX_TOTAL_MATCHES) break;
+        if (lines[i].toLowerCase().includes(q)) {
+          results.push({
+            fileId: node.path,
+            fileName: node.name,
+            lineNumber: i + 1,
+            snippet: lines[i].trim().slice(0, 160),
+          });
+          matchesInFile++;
+        }
+      }
+    }
+  }
+
+  await walk(nodes);
+  return results;
 }
 
 /**

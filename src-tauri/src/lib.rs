@@ -41,6 +41,12 @@ pub fn run() {
   let app = tauri::Builder::default()
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_dialog::init())
+    // Auto-update scaffolding — see README's "Auto-Update Setup" section.
+    // Registering the plugin here is safe even before `tauri.conf.json`'s
+    // `plugins.updater` block (endpoint + pubkey) is configured; the
+    // frontend's checkForUpdates() just reports "not configured" until then.
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
     .manage(OpenedFiles(Mutex::new(initial_files)))
     .invoke_handler(tauri::generate_handler![get_opened_files, clear_opened_files])
     .setup(|app| {

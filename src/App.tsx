@@ -2,10 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Editor } from '@tiptap/core';
 import Sidebar from './components/Sidebar';
 import Toolbar from './components/Toolbar';
-import EditorComponent from './components/Editor';
+import EditorComponent, { type SavedImage } from './components/Editor';
 import PdfViewer from './components/PdfViewer';
 import StatusBar from './components/StatusBar';
-import type { MdFile, FileTreeNode } from './utils/fileManager';
+import SettingsDialog from './components/SettingsDialog';
+import Outline from './components/Outline';
+import FindReplaceBar from './components/FindReplaceBar';
+import MetadataBar from './components/MetadataBar';
+import type { MdFile, FileTreeNode, RecentFile, SearchMatch } from './utils/fileManager';
 import {
   isTauri,
   pickFolder,
@@ -16,7 +20,10 @@ import {
   readFile,
   saveFile,
   createNewFile,
+  createFolder,
+  renamePathNative,
   deleteFileNative,
+  trashFile,
   openFileDialog,
   getActiveFileId,
   setActiveFileId,
@@ -24,6 +31,12 @@ import {
   isBinaryFile,
   isPdfFile,
   getFileExtension,
+  getRecentFiles,
+  addRecentFile,
+  removeRecentFile,
+  searchInTree,
+  getFileMtime,
+  saveImageAsset,
 } from './utils/fileManager';
 import {
   exportAsMarkdown,
@@ -31,12 +44,15 @@ import {
   markdownToHtml,
   htmlToMarkdown,
   importMarkdownFileBrowser,
+  parseFrontmatter,
+  serializeFrontmatter,
+  type Frontmatter,
 } from './utils/markdown';
+import { getSettings, saveSettings, type AppSettings } from './utils/settings';
+import { checkForUpdates } from './utils/updater';
 
 type Theme = 'light' | 'dark';
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
-
-
 
 export default function App() {
   // Theme
@@ -46,12 +62,45 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
+  // Settings
+  const [settings, setSettings] = useState<AppSettings>(() => getSettings());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--editor-max-width', `${settings.editorMaxWidth}px`);
+  }, [settings.editorMaxWidth]);
+
+  const handleSaveSettings = useCallback((next: AppSettings) => {
+    setSettings(next);
+    saveSettings(next);
+  }, []);
+
+  const handleCheckForUpdates = useCallback(async () => {
+    setUpdateStatus('Update ရှိမရှိ စစ်ဆေးနေသည်...');
+    const result = await checkForUpdates();
+    setUpdateStatus(result);
+  }, []);
+
   // Folder & Files
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [files, setFiles] = useState<MdFile[]>([]);
   const [treeNodes, setTreeNodes] = useState<FileTreeNode[]>([]);
   const [activeFileId, setActiveFile] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  // Recent files
+  const [recentFiles, setRecentFiles] = useState<RecentFile[]>(() => getRecentFiles());
+  const refreshRecentFiles = useCallback(() => setRecentFiles(getRecentFiles()), []);
+  const handleRemoveRecentFile = useCallback((id: string) => {
+    removeRecentFile(id);
+    refreshRecentFiles();
+  }, [refreshRecentFiles]);
+
+  // Panels
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
 
   // Editor ref — for imperative access (export, keyboard shortcuts) outside
   // of render. Mutating a ref doesn't trigger a re-render on its own, so
@@ -79,6 +128,26 @@ export default function App() {
       return mdFiles;
     }
   }, []);
+
+  // Last-known mtime of the active file, used to detect edits made outside
+  // this app (see the window-focus handler below).
+  const lastKnownMtimeRef = useRef<number | null>(null);
+  const trackMtime = useCallback(async (id: string) => {
+    lastKnownMtimeRef.current = await getFileMtime(id);
+  }, []);
+
+  // Pending-save bookkeeping, declared up here (rather than down by
+  // handleEditorUpdate/flushPendingSave where they're mainly used) because
+  // the window-focus handler below also reads them to decide whether it's
+  // safe to auto-reload an externally-changed file.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingHtmlRef = useRef<string | null>(null);
+  // Mirrors activeFileId in a ref so close/unload/focus handlers (which
+  // can't depend on React state directly) always see the current file.
+  const activeFileIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeFileIdRef.current = activeFileId;
+  }, [activeFileId]);
 
   /**
    * Open a file by its absolute path.
@@ -120,10 +189,13 @@ export default function App() {
       });
       setActiveFile(filePath);
       setActiveFileId(filePath);
+      addRecentFile(filePath, fileName);
+      refreshRecentFiles();
+      trackMtime(filePath);
     } catch (err) {
       console.error('Failed to open file:', err);
     }
-  }, [loadFolder]);
+  }, [loadFolder, refreshRecentFiles, trackMtime]);
 
   // Initialize — load last folder, and check for "Open With" files in background
   useEffect(() => {
@@ -167,6 +239,7 @@ export default function App() {
           }
           setActiveFile(targetId);
           setActiveFileId(targetId);
+          trackMtime(targetId);
         }
       }
     }
@@ -199,10 +272,11 @@ export default function App() {
     checkOpenedFiles();
 
     return () => { cancelled = true; };
-  }, [openFileByPath, loadFolder]);
+  }, [openFileByPath, loadFolder, trackMtime]);
 
   // Listen for files opened while app is already running (e.g. double-click another .md file)
-  // Also acts as backup for initial file open in case polling misses it.
+  // Also acts as backup for initial file open in case polling misses it, and
+  // checks whether the active file changed on disk while we were away.
   useEffect(() => {
     if (!isTauri()) return;
 
@@ -230,9 +304,28 @@ export default function App() {
         if (openedFiles && openedFiles.length > 0) {
           await openFileByPath(openedFiles[0]);
           await invoke('clear_opened_files');
+          return;
         }
       } catch {
         // ignore
+      }
+
+      // Detect edits made outside this app (another editor, git checkout,
+      // sync conflict, etc). Only auto-reload when there's no in-flight
+      // local edit — otherwise we'd risk clobbering what the user just
+      // typed, or overwriting their change on the next autosave.
+      const id = activeFileIdRef.current;
+      if (!id || pendingHtmlRef.current) return;
+      try {
+        const mtime = await getFileMtime(id);
+        if (mtime !== null && lastKnownMtimeRef.current !== null && mtime > lastKnownMtimeRef.current) {
+          const content = await readFile(id);
+          setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, content } : f)));
+          lastKnownMtimeRef.current = mtime;
+          setReloadNonce((n) => n + 1);
+        }
+      } catch (err) {
+        console.error('Failed to check for external file changes:', err);
       }
     };
     window.addEventListener('focus', handleWindowFocus);
@@ -255,6 +348,23 @@ export default function App() {
 
   // Active file content
   const activeFile = files.find((f) => f.id === activeFileId);
+  const activeFileDir = activeFile ? activeFile.path.split('/').slice(0, -1).join('/') : '';
+
+  // Frontmatter (YAML-lite metadata block) for the active markdown file.
+  const [frontmatter, setFrontmatter] = useState<Frontmatter>({});
+  const frontmatterRef = useRef<Frontmatter>({});
+  useEffect(() => {
+    frontmatterRef.current = frontmatter;
+  }, [frontmatter]);
+
+  useEffect(() => {
+    if (!activeFile || !isTauri() || !isMarkdownFile(activeFile.name)) {
+      setFrontmatter({});
+      return;
+    }
+    const { frontmatter: fm } = parseFrontmatter(activeFile.content);
+    setFrontmatter(fm ?? {});
+  }, [activeFile]);
 
   // Open folder (Tauri native)
   const handleOpenFolder = useCallback(async () => {
@@ -273,6 +383,8 @@ export default function App() {
     if (isBinaryFile(fileName)) {
       setActiveFile(id);
       setActiveFileId(id);
+      addRecentFile(id, fileName);
+      refreshRecentFiles();
       return;
     }
     if (isTauri()) {
@@ -283,6 +395,7 @@ export default function App() {
         );
         setActiveFile(id);
         setActiveFileId(id);
+        trackMtime(id);
       } catch (err) {
         console.error('Failed to read file:', err);
         setActiveFile(id);
@@ -292,27 +405,78 @@ export default function App() {
       setActiveFile(id);
       setActiveFileId(id);
     }
-  }, []);
+    addRecentFile(id, fileName);
+    refreshRecentFiles();
+  }, [refreshRecentFiles, trackMtime]);
 
-  // Create file
+  // Create file — dirPath defaults to the current folder root when omitted.
   const handleCreateFile = useCallback(
-    async (name: string) => {
-      const dir = currentFolder || '';
+    async (name: string, dirPath?: string) => {
+      const dir = dirPath ?? currentFolder ?? '';
       const newFile = await createNewFile(dir, name);
-      await loadFolder(dir || '');
+      await loadFolder(currentFolder || '');
       setActiveFile(newFile.id);
       setActiveFileId(newFile.id);
     },
     [currentFolder, loadFolder],
   );
 
-  // Delete file
+  // Create folder
+  const handleCreateFolder = useCallback(
+    async (name: string, dirPath?: string) => {
+      const dir = dirPath ?? currentFolder ?? '';
+      await createFolder(dir, name);
+      await loadFolder(currentFolder || '');
+    },
+    [currentFolder, loadFolder],
+  );
+
+  // Rename a file or folder in place.
+  const handleRenamePath = useCallback(
+    async (oldPath: string, newName: string) => {
+      const parts = oldPath.split('/');
+      parts[parts.length - 1] = newName;
+      const newPath = parts.join('/');
+      try {
+        await renamePathNative(oldPath, newPath);
+      } catch (err) {
+        console.error('Failed to rename:', err);
+        return;
+      }
+      await loadFolder(currentFolder || '');
+      // `oldPath` may be a folder that contains the active file — rewrite
+      // its path/id prefix too, so it doesn't keep pointing at a path that
+      // no longer exists (which would silently break the next save).
+      if (activeFileId === oldPath) {
+        setActiveFile(newPath);
+        setActiveFileId(newPath);
+      } else if (activeFileId && activeFileId.startsWith(`${oldPath}/`)) {
+        const rewritten = newPath + activeFileId.slice(oldPath.length);
+        setFiles((prev) =>
+          prev.map((f) => (f.id === activeFileId ? { ...f, id: rewritten, path: rewritten } : f)),
+        );
+        setActiveFile(rewritten);
+        setActiveFileId(rewritten);
+      }
+    },
+    [currentFolder, loadFolder, activeFileId],
+  );
+
+  // Delete file — moved to .trash/ instead of removed outright (Tauri mode).
   const handleDeleteFile = useCallback(
     async (id: string) => {
       if (!window.confirm('ဒီဖိုင်ကို ဖျက်ချင်တာ သေချာပါသလား?')) return;
-      await deleteFileNative(id);
+      if (isTauri() && currentFolder) {
+        await trashFile(currentFolder, id);
+      } else {
+        await deleteFileNative(id);
+      }
       const remaining = await loadFolder(currentFolder || '');
-      if (id === activeFileId) {
+      // `id` may be a folder path (deleting a folder deletes everything
+      // inside it too) — clear the active file if it was inside.
+      const activeWasRemoved =
+        activeFileId != null && (activeFileId === id || activeFileId.startsWith(`${id}/`));
+      if (activeWasRemoved) {
         const next = remaining.length > 0 ? remaining[0].id : null;
         setActiveFile(next);
         setActiveFileId(next);
@@ -321,15 +485,31 @@ export default function App() {
     [activeFileId, currentFolder, loadFolder],
   );
 
-  // Debounced save — all heavy work happens here, NOT on every keystroke
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingHtmlRef = useRef<string | null>(null);
-  // Mirrors activeFileId in a ref so close/unload handlers (which can't
-  // depend on React state directly) always see the current file.
-  const activeFileIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    activeFileIdRef.current = activeFileId;
-  }, [activeFileId]);
+  // Search across every text/markdown file in the open folder.
+  const handleSearch = useCallback(
+    (query: string): Promise<SearchMatch[]> => searchInTree(treeNodes, query),
+    [treeNodes],
+  );
+
+  // Save a pasted/dropped image as a real file under assets/, next to the
+  // current document, instead of inlining it as base64.
+  const handleImageFile = useCallback(async (file: File): Promise<SavedImage | null> => {
+    if (!isTauri() || !activeFile || !activeFileDir) return null;
+    try {
+      const buffer = await file.arrayBuffer();
+      const relativeSrc = await saveImageAsset(activeFileDir, file.name || 'image.png', new Uint8Array(buffer));
+      const { convertFileSrc } = await import('@tauri-apps/api/core');
+      const src = convertFileSrc(`${activeFileDir}/${relativeSrc}`);
+      return { src, relativeSrc };
+    } catch (err) {
+      console.error('Failed to save image asset:', err);
+      return null;
+    }
+  }, [activeFile, activeFileDir]);
+
+  // Debounced save — all heavy work happens here, NOT on every keystroke.
+  // (saveTimerRef / pendingHtmlRef / activeFileIdRef are declared earlier,
+  // near trackMtime, since the window-focus handler also needs them.)
 
   // Immediately persist whatever edit is pending, bypassing the debounce.
   // Used by the window close handler so in-flight edits aren't lost.
@@ -344,10 +524,14 @@ export default function App() {
     pendingHtmlRef.current = null;
 
     setSaveStatus('saving');
-    const contentToSave = isTauri() ? htmlToMarkdown(pendingHtml) : pendingHtml;
+    let contentToSave = isTauri() ? htmlToMarkdown(pendingHtml) : pendingHtml;
+    if (isTauri()) {
+      contentToSave = serializeFrontmatter(frontmatterRef.current, contentToSave);
+    }
     await saveFile(fileId, contentToSave);
+    trackMtime(fileId);
     setSaveStatus('saved');
-  }, []);
+  }, [trackMtime]);
 
   const handleEditorUpdate = useCallback(
     (html: string) => {
@@ -356,17 +540,32 @@ export default function App() {
       // Store latest HTML, don't process yet
       pendingHtmlRef.current = html;
 
-      // Debounce: only process after 600ms of no typing
+      // Debounce: only process after the configured delay of no typing
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
         flushPendingSave();
-      }, 600);
+      }, settings.autoSaveDelayMs);
     },
-    [activeFileId, flushPendingSave],
+    [activeFileId, flushPendingSave, settings.autoSaveDelayMs],
+  );
+
+  // Metadata (frontmatter) edits piggyback on the same debounced save path.
+  const handleMetadataChange = useCallback(
+    (next: Frontmatter) => {
+      setFrontmatter(next);
+      frontmatterRef.current = next;
+      if (!activeFileId || !editorRef.current) return;
+      pendingHtmlRef.current = editorRef.current.getHTML();
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        flushPendingSave();
+      }, settings.autoSaveDelayMs);
+    },
+    [activeFileId, flushPendingSave, settings.autoSaveDelayMs],
   );
 
   // Flush any pending debounced save before the window/app actually closes,
-  // so edits made in the last <600ms before quitting aren't lost.
+  // so edits made right before quitting aren't lost.
   useEffect(() => {
     if (!isTauri()) {
       // Browser/dev fallback: best-effort synchronous flush to localStorage.
@@ -456,7 +655,8 @@ export default function App() {
     if (!activeFile) return '';
     if (isTauri()) {
       if (isMarkdownFile(activeFile.name)) {
-        return markdownToHtml(activeFile.content);
+        const { body } = parseFrontmatter(activeFile.content);
+        return markdownToHtml(body, activeFileDir);
       }
       const ext = getFileExtension(activeFile.name);
       const escaped = activeFile.content
@@ -466,7 +666,7 @@ export default function App() {
       return `<pre><code class="language-${ext}">${escaped}</code></pre>`;
     }
     return activeFile.content;
-  }, [activeFile]);
+  }, [activeFile, activeFileDir]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -480,10 +680,13 @@ export default function App() {
             saveTimerRef.current = null;
           }
           pendingHtmlRef.current = null;
-          const contentToSave = isTauri()
+          let contentToSave = isTauri()
             ? htmlToMarkdown(editorRef.current.getHTML())
             : editorRef.current.getHTML();
-          saveFile(activeFileId, contentToSave);
+          if (isTauri()) {
+            contentToSave = serializeFrontmatter(frontmatterRef.current, contentToSave);
+          }
+          saveFile(activeFileId, contentToSave).then(() => trackMtime(activeFileId));
           setSaveStatus('saved');
         }
       }
@@ -500,10 +703,16 @@ export default function App() {
           handleImportFile();
         }
       }
+      if (mod && e.key === 'f') {
+        e.preventDefault();
+        setFindOpen(true);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFileId, handleCreateFile, handleImportFile, handleOpenFolder]);
+  }, [activeFileId, handleCreateFile, handleImportFile, handleOpenFolder, trackMtime]);
+
+  const isMd = activeFile ? isMarkdownFile(activeFile.name) : false;
 
   return (
     <div className="app-layout">
@@ -513,9 +722,15 @@ export default function App() {
         activeFileId={activeFileId}
         onSelectFile={handleSelectFile}
         onCreateFile={handleCreateFile}
+        onCreateFolder={handleCreateFolder}
         onDeleteFile={handleDeleteFile}
+        onRenamePath={handleRenamePath}
         onOpenFolder={handleOpenFolder}
         currentFolder={currentFolder}
+        recentFiles={recentFiles}
+        onRemoveRecentFile={handleRemoveRecentFile}
+        onSearch={handleSearch}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="main-content">
         <Toolbar
@@ -523,68 +738,81 @@ export default function App() {
           onExportMarkdown={handleExportMarkdown}
           onExportHtml={handleExportHtml}
           onImportFile={handleImportFile}
+          onToggleFind={() => setFindOpen((v) => !v)}
+          onToggleOutline={() => setOutlineOpen((v) => !v)}
+          outlineOpen={outlineOpen}
         />
-        {activeFile ? (
-          isBinaryFile(activeFile.name) ? (
-            isPdfFile(activeFile.name) ? (
-              <PdfViewer
-                key={activeFileId}
-                filePath={activeFile.id}
-                fileName={activeFile.name}
-              />
+        <FindReplaceBar editor={editorInstance} isOpen={findOpen} onClose={() => setFindOpen(false)} />
+        <div className="content-row">
+          <div className="content-column">
+            {isTauri() && isMd && activeFile && (
+              <MetadataBar frontmatter={frontmatter} onChange={handleMetadataChange} />
+            )}
+            {activeFile ? (
+              isBinaryFile(activeFile.name) ? (
+                isPdfFile(activeFile.name) ? (
+                  <PdfViewer
+                    key={activeFileId}
+                    filePath={activeFile.id}
+                    fileName={activeFile.name}
+                  />
+                ) : (
+                <div className="editor-container">
+                  <div className="empty-state fade-in">
+                    <div className="empty-state-icon">📦</div>
+                    <p className="empty-state-text">
+                      <strong>{activeFile.name}</strong>
+                    </p>
+                    <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-sm)' }}>
+                      .{getFileExtension(activeFile.name)} ဖိုင်ကို ဖွင့်၍မရပါ (Unsupported file type)
+                    </p>
+                  </div>
+                </div>
+                )
+              ) : (
+                <EditorComponent
+                  key={`${activeFileId}-${reloadNonce}`}
+                  content={getEditorContent()}
+                  onUpdate={handleEditorUpdate}
+                  editorRef={editorRef}
+                  onEditorReady={handleEditorReady}
+                  onImageFile={handleImageFile}
+                />
+              )
             ) : (
-            <div className="editor-container">
-              <div className="empty-state fade-in">
-                <div className="empty-state-icon">📦</div>
-                <p className="empty-state-text">
-                  <strong>{activeFile.name}</strong>
-                </p>
-                <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-sm)' }}>
-                  .{getFileExtension(activeFile.name)} ဖိုင်ကို ဖွင့်၍မရပါ (Unsupported file type)
-                </p>
+              <div className="editor-container">
+                <div className="empty-state fade-in">
+                  <div className="empty-state-icon">📝</div>
+                  <p className="empty-state-text">
+                    {currentFolder
+                      ? 'ဖိုင်တစ်ခုကို ရွေးချယ်ပါ သို့မဟုတ် ဖိုင်အသစ်ဖန်တီးပါ'
+                      : isTauri()
+                        ? 'Folder တစ်ခု ဖွင့်ပါ (Cmd+Shift+O)'
+                        : 'ဖိုင်တစ်ခုကို ရွေးချယ်ပါ သို့မဟုတ် ဖိုင်အသစ်ဖန်တီးပါ'}
+                  </p>
+                  {!currentFolder && isTauri() && (
+                    <button
+                      className="toolbar-btn"
+                      style={{
+                        width: 'auto',
+                        padding: '8px 20px',
+                        background: 'var(--color-accent)',
+                        color: 'var(--color-text-inverse)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--font-size-sm)',
+                        fontFamily: 'var(--font-primary)',
+                      }}
+                      onClick={handleOpenFolder}
+                    >
+                      Folder ဖွင့်ပါ
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-            )
-          ) : (
-            <EditorComponent
-              key={activeFileId}
-              content={getEditorContent()}
-              onUpdate={handleEditorUpdate}
-              editorRef={editorRef}
-              onEditorReady={handleEditorReady}
-            />
-          )
-        ) : (
-          <div className="editor-container">
-            <div className="empty-state fade-in">
-              <div className="empty-state-icon">📝</div>
-              <p className="empty-state-text">
-                {currentFolder
-                  ? 'ဖိုင်တစ်ခုကို ရွေးချယ်ပါ သို့မဟုတ် ဖိုင်အသစ်ဖန်တီးပါ'
-                  : isTauri()
-                    ? 'Folder တစ်ခု ဖွင့်ပါ (Cmd+Shift+O)'
-                    : 'ဖိုင်တစ်ခုကို ရွေးချယ်ပါ သို့မဟုတ် ဖိုင်အသစ်ဖန်တီးပါ'}
-              </p>
-              {!currentFolder && isTauri() && (
-                <button
-                  className="toolbar-btn"
-                  style={{
-                    width: 'auto',
-                    padding: '8px 20px',
-                    background: 'var(--color-accent)',
-                    color: 'var(--color-text-inverse)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 'var(--font-size-sm)',
-                    fontFamily: 'var(--font-primary)',
-                  }}
-                  onClick={handleOpenFolder}
-                >
-                  Folder ဖွင့်ပါ
-                </button>
-              )}
-            </div>
+            )}
           </div>
-        )}
+          {outlineOpen && editorInstance && <Outline editor={editorInstance} />}
+        </div>
         <StatusBar
           editor={editorInstance}
           theme={theme}
@@ -592,6 +820,14 @@ export default function App() {
           saveStatus={saveStatus}
         />
       </div>
+      <SettingsDialog
+        isOpen={settingsOpen}
+        settings={settings}
+        onSave={handleSaveSettings}
+        onClose={() => setSettingsOpen(false)}
+        onCheckForUpdates={handleCheckForUpdates}
+        updateStatus={updateStatus}
+      />
     </div>
   );
 }

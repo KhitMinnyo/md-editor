@@ -62,6 +62,12 @@ jobs:
           npm install
 
       - name: Build Tauri app
+        env:
+          # Updater signing (optional; see README "Auto-Update Setup").
+          # `tauri build` signs the update artifact when these are set, and
+          # skips signing silently when they're empty — safe either way.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx --package=@tauri-apps/cli tauri build --bundles deb
 
       - name: Debug - List bundle output
