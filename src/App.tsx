@@ -317,6 +317,30 @@ export default function App() {
   // Debounced save — all heavy work happens here, NOT on every keystroke
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingHtmlRef = useRef<string | null>(null);
+  // Mirrors activeFileId in a ref so close/unload handlers (which can't
+  // depend on React state directly) always see the current file.
+  const activeFileIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeFileIdRef.current = activeFileId;
+  }, [activeFileId]);
+
+  // Immediately persist whatever edit is pending, bypassing the debounce.
+  // Used by the window close handler so in-flight edits aren't lost.
+  const flushPendingSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const pendingHtml = pendingHtmlRef.current;
+    const fileId = activeFileIdRef.current;
+    if (!pendingHtml || !fileId) return;
+    pendingHtmlRef.current = null;
+
+    setSaveStatus('saving');
+    const contentToSave = isTauri() ? htmlToMarkdown(pendingHtml) : pendingHtml;
+    await saveFile(fileId, contentToSave);
+    setSaveStatus('saved');
+  }, []);
 
   const handleEditorUpdate = useCallback(
     (html: string) => {
@@ -327,19 +351,57 @@ export default function App() {
 
       // Debounce: only process after 600ms of no typing
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(async () => {
-        const pendingHtml = pendingHtmlRef.current;
-        if (!pendingHtml || !activeFileId) return;
-        pendingHtmlRef.current = null;
-
-        setSaveStatus('saving');
-        const contentToSave = isTauri() ? htmlToMarkdown(pendingHtml) : pendingHtml;
-        await saveFile(activeFileId, contentToSave);
-        setSaveStatus('saved');
+      saveTimerRef.current = setTimeout(() => {
+        flushPendingSave();
       }, 600);
     },
-    [activeFileId],
+    [activeFileId, flushPendingSave],
   );
+
+  // Flush any pending debounced save before the window/app actually closes,
+  // so edits made in the last <600ms before quitting aren't lost.
+  useEffect(() => {
+    if (!isTauri()) {
+      // Browser/dev fallback: best-effort synchronous flush to localStorage.
+      const handleBeforeUnload = () => {
+        if (pendingHtmlRef.current && activeFileIdRef.current) {
+          saveFile(activeFileIdRef.current, pendingHtmlRef.current);
+        }
+      };
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const appWindow = getCurrentWindow();
+        const off = await appWindow.onCloseRequested(async (event) => {
+          if (pendingHtmlRef.current) {
+            // Hold the window open just long enough to persist the edit.
+            event.preventDefault();
+            await flushPendingSave();
+            await appWindow.destroy();
+          }
+        });
+        if (cancelled) {
+          off();
+        } else {
+          unlisten = off;
+        }
+      } catch (err) {
+        console.error('Failed to set up close handler:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, [flushPendingSave]);
 
   // Export
   const handleExportMarkdown = useCallback(async () => {
@@ -406,6 +468,11 @@ export default function App() {
       if (mod && e.key === 's') {
         e.preventDefault();
         if (activeFileId && editorRef.current) {
+          if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+          }
+          pendingHtmlRef.current = null;
           const contentToSave = isTauri()
             ? htmlToMarkdown(editorRef.current.getHTML())
             : editorRef.current.getHTML();

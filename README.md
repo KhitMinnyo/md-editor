@@ -86,6 +86,14 @@ Your notes will automatically sync across all your devices. No additional setup 
 
 ---
 
+## 🔒 File System Access
+
+MD Editor requests broad file system permissions (`src-tauri/capabilities/default.json` grants read/write/delete across `**`, i.e. the whole disk, not just a sandboxed app folder). This is intentional: the app is a general-purpose folder browser/editor — you can point it at any folder on disk (including cloud-synced ones), and it needs to read, write, and delete files anywhere you choose to open. Tauri's dialog-triggered folder/file pickers are still the only way a folder is *added* to the app; MD Editor never reads or writes outside a folder you've explicitly opened.
+
+If you're building a fork that only needs to touch a fixed directory (e.g. `$APPDATA`), narrow the `path` scopes in `src-tauri/capabilities/default.json` accordingly — see the [Tauri capabilities docs](https://v2.tauri.app/security/capabilities/).
+
+---
+
 ## 🛠️ Build from Source
 
 ### Prerequisites
