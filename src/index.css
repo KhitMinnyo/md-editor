@@ -197,10 +197,26 @@ body {
   letter-spacing: -0.02em;
 }
 
-.sidebar-logo-img {
-  width: 24px;
-  height: 24px;
+.sidebar-logo-icon-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   flex-shrink: 0;
+}
+
+.sidebar-logo-img {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+}
+
+.sidebar-logo-version {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  letter-spacing: 0;
 }
 
 .sidebar-actions {

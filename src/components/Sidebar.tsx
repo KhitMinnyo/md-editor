@@ -734,7 +734,10 @@ function Sidebar({
       {/* Header */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <img src="/favicon.svg" alt="" className="sidebar-logo-img" />
+          <div className="sidebar-logo-icon-stack">
+            <img src="/app-icon.png" alt="" className="sidebar-logo-img" />
+            <span className="sidebar-logo-version">v{__APP_VERSION__}</span>
+          </div>
           MD Editor
         </div>
         <div className="sidebar-actions">
