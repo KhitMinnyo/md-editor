@@ -18,7 +18,7 @@ export default function TableToolbar({ editor }: TableToolbarProps) {
         <button
           className="table-toolbar-btn"
           onClick={() => editor.chain().focus().addRowBefore().run()}
-          title="အပေါ်မှာ row ထည့်"
+          title="Add row above"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width="14" height="14">
             <line x1="12" y1="5" x2="12" y2="19" />
@@ -29,7 +29,7 @@ export default function TableToolbar({ editor }: TableToolbarProps) {
         <button
           className="table-toolbar-btn"
           onClick={() => editor.chain().focus().addRowAfter().run()}
-          title="အောက်မှာ row ထည့်"
+          title="Add row below"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width="14" height="14">
             <line x1="12" y1="5" x2="12" y2="19" />
@@ -40,7 +40,7 @@ export default function TableToolbar({ editor }: TableToolbarProps) {
         <button
           className="table-toolbar-btn danger"
           onClick={() => editor.chain().focus().deleteRow().run()}
-          title="Row ဖျက်"
+          title="Delete row"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width="14" height="14">
             <line x1="5" y1="12" x2="19" y2="12" />
@@ -55,7 +55,7 @@ export default function TableToolbar({ editor }: TableToolbarProps) {
         <button
           className="table-toolbar-btn"
           onClick={() => editor.chain().focus().addColumnBefore().run()}
-          title="ဘယ်ဘက်မှာ column ထည့်"
+          title="Add column left"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width="14" height="14">
             <line x1="12" y1="5" x2="12" y2="19" />
@@ -66,7 +66,7 @@ export default function TableToolbar({ editor }: TableToolbarProps) {
         <button
           className="table-toolbar-btn"
           onClick={() => editor.chain().focus().addColumnAfter().run()}
-          title="ညာဘက်မှာ column ထည့်"
+          title="Add column right"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width="14" height="14">
             <line x1="12" y1="5" x2="12" y2="19" />
@@ -77,7 +77,7 @@ export default function TableToolbar({ editor }: TableToolbarProps) {
         <button
           className="table-toolbar-btn danger"
           onClick={() => editor.chain().focus().deleteColumn().run()}
-          title="Column ဖျက်"
+          title="Delete column"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width="14" height="14">
             <line x1="5" y1="12" x2="19" y2="12" />
@@ -90,7 +90,7 @@ export default function TableToolbar({ editor }: TableToolbarProps) {
       <button
         className="table-toolbar-btn danger"
         onClick={() => editor.chain().focus().deleteTable().run()}
-        title="Table ဖျက်"
+        title="Delete table"
         style={{ gap: '4px' }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width="14" height="14">

@@ -91,7 +91,7 @@ export async function pickFolder(): Promise<string | null> {
   const selected = await openDialog({
     directory: true,
     multiple: false,
-    title: 'Markdown ဖိုင်များရှိသော folder ကိုရွေးချယ်ပါ',
+    title: 'Select a folder containing Markdown files',
   });
   if (typeof selected === 'string') {
     localStorage.setItem(LAST_FOLDER_KEY, selected);
@@ -455,7 +455,7 @@ export async function openFileDialog(): Promise<{ name: string; content: string;
 
   const selected = await openDialog({
     multiple: false,
-    title: 'Markdown ဖိုင်ဖွင့်ပါ',
+    title: 'Open Markdown File',
     filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
   });
 
@@ -474,7 +474,7 @@ export async function saveFileDialog(content: string, defaultName: string): Prom
   if (!isTauri()) return null;
 
   const filePath = await saveDialog({
-    title: 'ဖိုင်သိမ်းဆည်းပါ',
+    title: 'Save File',
     defaultPath: defaultName,
     filters: [{ name: 'Markdown', extensions: ['md'] }],
   });
@@ -525,16 +525,16 @@ export async function ensureWelcomeFile(dirPath: string): Promise<void> {
   const files = await listMdFiles(dirPath);
   if (files.length > 0) return;
 
-  const welcomeContent = `# MD Editor မှ ကြိုဆိုပါတယ် 🎉
+  const welcomeContent = `# Welcome to MD Editor 🎉
 
-ဒီ editor ကို **Markdown** ဖိုင်တွေကို Microsoft Word လိုမျိုး အလွယ်တကူ ပြင်ဆင်ဖို့ ဖန်တီးထားပါတယ်။
+This editor lets you edit **Markdown** files as easily as Microsoft Word.
 
 ## ✨ Features
 
-- **WYSIWYG Editing** — မြင်ရတဲ့အတိုင်း ရေးသားနိုင်ပါတယ်
-- **Myanmar Unicode** — မြန်မာစာ ယူနီကုဒ် အပြည့်အဝ support လုပ်ပါတယ်
-- **Dark / Light Mode** — အလင်း/အမှောင် theme ပြောင်းလဲနိုင်ပါတယ်
-- **Native App** — Tauri နဲ့ native Mac app အဖြစ် ဖန်တီးထားပါတယ်
+- **WYSIWYG Editing** — write and see the formatted result as you type
+- **Myanmar Unicode** — full Myanmar Unicode support
+- **Dark / Light Mode** — switch between light and dark themes
+- **Native App** — built with Tauri as a native Mac app
 
 ## 📝 Markdown Syntax
 
@@ -561,11 +561,11 @@ console.log("Hello, MD Editor!");
 
 ### Blockquote
 
-> မှတ်သားဖွယ် စာပိုဒ်တစ်ခုကို ဒီလိုရေးနိုင်ပါတယ်။
+> You can write a note-worthy paragraph like this.
 
 ---
 
-စာရေးဖို့ စလိုက်ပါ! 🚀
+Start writing! 🚀
 `;
 
   await writeTextFile(`${dirPath}/Welcome.md`, welcomeContent);
@@ -623,7 +623,7 @@ function initLocalStorageDefaults(): MdFile[] {
   const welcome: MdFile = {
     id: `file-${Date.now()}`,
     name: 'Welcome.md',
-    content: `<h1>MD Editor မှ ကြိုဆိုပါတယ် 🎉</h1><p>ဒီ editor ကို <strong>Markdown</strong> ဖိုင်တွေကို Microsoft Word လိုမျိုး ပြင်ဆင်ဖို့ ဖန်တီးထားပါတယ်။</p><p>စာရေးဖို့ စလိုက်ပါ! 🚀</p>`,
+    content: `<h1>Welcome to MD Editor 🎉</h1><p>This editor lets you edit <strong>Markdown</strong> files as easily as Microsoft Word.</p><p>Start writing! 🚀</p>`,
     path: '',
     createdAt: Date.now(),
     updatedAt: Date.now(),

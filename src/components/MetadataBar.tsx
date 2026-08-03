@@ -10,7 +10,7 @@ interface MetadataBarProps {
 // file's frontmatter block (from files edited outside this app) is
 // preserved on save even though it isn't shown here.
 const FIELDS: Array<{ key: string; label: string; placeholder: string }> = [
-  { key: 'title', label: 'ခေါင်းစဉ်', placeholder: 'Title' },
+  { key: 'title', label: 'Title', placeholder: 'Title' },
   { key: 'tags', label: 'Tags', placeholder: 'tag1, tag2' },
   { key: 'date', label: 'Date', placeholder: 'YYYY-MM-DD' },
 ];

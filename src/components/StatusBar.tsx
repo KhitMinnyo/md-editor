@@ -8,9 +8,9 @@ interface StatusBarProps {
 }
 
 const statusConfig = {
-  saved: { label: 'သိမ်းပြီး', color: 'var(--color-success)' },
-  saving: { label: 'သိမ်းဆည်းနေ...', color: 'var(--color-warning)' },
-  unsaved: { label: 'မသိမ်းရသေး', color: 'var(--color-text-tertiary)' },
+  saved: { label: 'Saved', color: 'var(--color-success)' },
+  saving: { label: 'Saving...', color: 'var(--color-warning)' },
+  unsaved: { label: 'Unsaved', color: 'var(--color-text-tertiary)' },
 } as const;
 
 export default function StatusBar({ editor, theme, onToggleTheme, saveStatus }: StatusBarProps) {

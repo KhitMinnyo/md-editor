@@ -34,7 +34,7 @@ export default function PdfViewer({ filePath, fileName }: PdfViewerProps) {
         }
       } catch (err) {
         console.error('Failed to load PDF:', err);
-        setError('PDF ဖိုင်ကို ဖွင့်၍မရပါ');
+        setError('Could not open PDF file');
       } finally {
         setLoading(false);
       }
@@ -52,7 +52,7 @@ export default function PdfViewer({ filePath, fileName }: PdfViewerProps) {
       <div className="editor-container">
         <div className="empty-state fade-in">
           <div className="empty-state-icon">⏳</div>
-          <p className="empty-state-text">PDF ဖိုင် ဖွင့်နေပါသည်...</p>
+          <p className="empty-state-text">Opening PDF...</p>
         </div>
       </div>
     );
@@ -67,7 +67,7 @@ export default function PdfViewer({ filePath, fileName }: PdfViewerProps) {
             <strong>{fileName}</strong>
           </p>
           <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-sm)' }}>
-            {error || 'PDF ဖိုင်ကို ဖွင့်၍မရပါ'}
+            {error || 'Could not open PDF file'}
           </p>
         </div>
       </div>

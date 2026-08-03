@@ -48,9 +48,9 @@ export default function Outline({ editor }: { editor: Editor | null }) {
 
   return (
     <div className="outline-panel">
-      <div className="outline-title">မာတိကာ</div>
+      <div className="outline-title">Outline</div>
       {headings.length === 0 ? (
-        <div className="outline-empty">Heading မရှိသေးပါ</div>
+        <div className="outline-empty">No headings yet</div>
       ) : (
         headings.map((h, i) => (
           <button

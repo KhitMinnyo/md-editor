@@ -123,7 +123,7 @@ export default function EditorComponent({ content, onUpdate, editorRef, onEditor
         autolink: true,
       }),
       Placeholder.configure({
-        placeholder: 'စာရေးရန် ဒီနေရာမှာ စတင်ပါ...',
+        placeholder: 'Start writing here...',
       }),
       Underline,
       TextAlign.configure({

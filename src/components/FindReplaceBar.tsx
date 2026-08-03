@@ -72,7 +72,7 @@ export default function FindReplaceBar({ editor, isOpen, onClose }: FindReplaceB
         <button
           className="icon-btn"
           onClick={() => setShowReplace((v) => !v)}
-          title="Replace ပြပါ/ဖျောက်ပါ"
+          title="Toggle replace"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
             strokeLinecap="round" strokeLinejoin="round" width="14" height="14"
@@ -84,7 +84,7 @@ export default function FindReplaceBar({ editor, isOpen, onClose }: FindReplaceB
           ref={queryInputRef}
           className="find-input"
           type="text"
-          placeholder="ရှာမည်..."
+          placeholder="Find..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -100,19 +100,19 @@ export default function FindReplaceBar({ editor, isOpen, onClose }: FindReplaceB
         <span className="find-count">
           {matches.length > 0 ? `${activeIndex + 1} / ${matches.length}` : query ? '0' : ''}
         </span>
-        <button className="icon-btn" onClick={goPrev} title="ရှေ့ (Shift+Enter)" disabled={matches.length === 0}>
+        <button className="icon-btn" onClick={goPrev} title="Previous (Shift+Enter)" disabled={matches.length === 0}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
             strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
             <polyline points="18 15 12 9 6 15" />
           </svg>
         </button>
-        <button className="icon-btn" onClick={goNext} title="နောက် (Enter)" disabled={matches.length === 0}>
+        <button className="icon-btn" onClick={goNext} title="Next (Enter)" disabled={matches.length === 0}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
             strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
-        <button className="icon-btn" onClick={onClose} title="ပိတ်မည် (Esc)">
+        <button className="icon-btn" onClick={onClose} title="Close (Esc)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
             strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -126,7 +126,7 @@ export default function FindReplaceBar({ editor, isOpen, onClose }: FindReplaceB
           <input
             className="find-input"
             type="text"
-            placeholder="အစားထိုးမည်..."
+            placeholder="Replace..."
             value={replacement}
             onChange={(e) => setReplacement(e.target.value)}
             onKeyDown={(e) => {
@@ -139,10 +139,10 @@ export default function FindReplaceBar({ editor, isOpen, onClose }: FindReplaceB
             }}
           />
           <button className="dialog-btn dialog-btn-cancel find-replace-btn" onClick={handleReplace} disabled={matches.length === 0}>
-            အစားထိုးမည်
+            Replace
           </button>
           <button className="dialog-btn dialog-btn-submit find-replace-btn" onClick={handleReplaceAll} disabled={matches.length === 0}>
-            အားလုံးအစားထိုးမည်
+            Replace All
           </button>
         </div>
       )}

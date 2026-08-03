@@ -197,9 +197,10 @@ body {
   letter-spacing: -0.02em;
 }
 
-.sidebar-logo svg {
+.sidebar-logo-img {
   width: 24px;
   height: 24px;
+  flex-shrink: 0;
 }
 
 .sidebar-actions {
@@ -487,8 +488,8 @@ body {
 .toolbar-brand-icon {
   width: 20px;
   height: 20px;
-  color: var(--color-accent);
   flex-shrink: 0;
+  object-fit: contain;
 }
 
 .toolbar-brand-name {

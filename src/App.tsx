@@ -457,7 +457,7 @@ export default function App() {
   // Delete file — moved to .trash/ instead of removed outright (Tauri mode).
   const handleDeleteFile = useCallback(
     async (id: string) => {
-      if (!window.confirm('ဒီဖိုင်ကို ဖျက်ချင်တာ သေချာပါသလား?')) return;
+      if (!window.confirm('Are you sure you want to delete this file?')) return;
       if (isTauri() && currentFolder) {
         await trashFile(currentFolder, id);
       } else {
@@ -692,7 +692,7 @@ export default function App() {
       }
       if (mod && e.key === 'n') {
         e.preventDefault();
-        const name = window.prompt('ဖိုင်အမည်ထည့်ပါ:', 'Untitled.md');
+        const name = window.prompt('Enter file name:', 'Untitled.md');
         if (name) handleCreateFile(name);
       }
       if (mod && e.key === 'o') {
@@ -764,7 +764,7 @@ export default function App() {
                       <strong>{activeFile.name}</strong>
                     </p>
                     <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-sm)' }}>
-                      .{getFileExtension(activeFile.name)} ဖိုင်ကို ဖွင့်၍မရပါ (Unsupported file type)
+                      .{getFileExtension(activeFile.name)} files can't be opened (Unsupported file type)
                     </p>
                   </div>
                 </div>
@@ -785,10 +785,10 @@ export default function App() {
                   <div className="empty-state-icon">📝</div>
                   <p className="empty-state-text">
                     {currentFolder
-                      ? 'ဖိုင်တစ်ခုကို ရွေးချယ်ပါ သို့မဟုတ် ဖိုင်အသစ်ဖန်တီးပါ'
+                      ? 'Select a file or create a new one'
                       : isTauri()
-                        ? 'Folder တစ်ခု ဖွင့်ပါ (Cmd+Shift+O)'
-                        : 'ဖိုင်တစ်ခုကို ရွေးချယ်ပါ သို့မဟုတ် ဖိုင်အသစ်ဖန်တီးပါ'}
+                        ? 'Open a folder (Cmd+Shift+O)'
+                        : 'Select a file or create a new one'}
                   </p>
                   {!currentFolder && isTauri() && (
                     <button
@@ -804,7 +804,7 @@ export default function App() {
                       }}
                       onClick={handleOpenFolder}
                     >
-                      Folder ဖွင့်ပါ
+                      Open Folder
                     </button>
                   )}
                 </div>

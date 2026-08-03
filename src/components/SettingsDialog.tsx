@@ -31,7 +31,7 @@ export default function SettingsDialog({
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog-box" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
-          <span className="dialog-title">⚙️ ဆက်တင်များ</span>
+          <span className="dialog-title">⚙️ Settings</span>
           <button className="dialog-close" onClick={onClose}>✕</button>
         </div>
 
@@ -77,7 +77,7 @@ export default function SettingsDialog({
             Cancel
           </button>
           <button type="button" className="dialog-btn dialog-btn-submit" onClick={handleSave}>
-            သိမ်းမည်
+            Save
           </button>
         </div>
       </div>

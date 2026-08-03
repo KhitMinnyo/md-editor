@@ -48,7 +48,7 @@ function RowMenu({
       <button
         className="icon-btn file-item-menu-btn"
         onClick={() => actions.setOpenMenuPath(isOpen ? null : path)}
-        title="ရွေးချယ်စရာများ"
+        title="Options"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
           strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
@@ -66,7 +66,7 @@ function RowMenu({
               actions.startRename(path, name);
             }}
           >
-            နာမည်ပြောင်းမည်
+            Rename
           </button>
           {isDir && (
             <>
@@ -77,7 +77,7 @@ function RowMenu({
                   actions.startCreateIn(path, 'file');
                 }}
               >
-                ဒီထဲမှာ ဖိုင်အသစ်
+                New File Here
               </button>
               <button
                 className="export-menu-item"
@@ -86,7 +86,7 @@ function RowMenu({
                   actions.startCreateIn(path, 'folder');
                 }}
               >
-                ဒီထဲမှာ Folder အသစ်
+                New Folder Here
               </button>
             </>
           )}
@@ -97,7 +97,7 @@ function RowMenu({
               actions.onDelete(path);
             }}
           >
-            ဖျက်မည်
+            Delete
           </button>
         </div>
       )}
@@ -431,7 +431,7 @@ function RecentFilesSection({
           <circle cx="12" cy="12" r="9" />
           <polyline points="12 7 12 12 16 14" />
         </svg>
-        <span className="folder-name">မကြာမီက ဖွင့်ခဲ့သည်</span>
+        <span className="folder-name">Recent Files</span>
       </div>
       {expanded && (
         <div className="folder-children">
@@ -441,7 +441,7 @@ function RecentFilesSection({
               <button
                 className="file-item-delete icon-btn"
                 onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
-                title="စာရင်းမှဖယ်ရှားမည်"
+                title="Remove from list"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
                   strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
@@ -469,10 +469,10 @@ function SearchResults({
   onSelect: (id: string) => void;
 }) {
   if (loading) {
-    return <div className="empty-state"><span className="empty-state-text">ရှာနေသည်...</span></div>;
+    return <div className="empty-state"><span className="empty-state-text">Searching...</span></div>;
   }
   if (matches.length === 0) {
-    return <div className="empty-state"><span className="empty-state-text">ရလဒ်မတွေ့ပါ</span></div>;
+    return <div className="empty-state"><span className="empty-state-text">No results found</span></div>;
   }
   return (
     <>
@@ -650,11 +650,7 @@ function Sidebar({
       {/* Header */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
-            strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
+          <img src="/favicon.svg" alt="" className="sidebar-logo-img" />
           MD Editor
         </div>
         <div className="sidebar-actions">
@@ -662,7 +658,7 @@ function Sidebar({
             <button
               className="icon-btn"
               onClick={() => setSearchOpen((v) => !v)}
-              title="ဖိုင်များထဲ ရှာမည်"
+              title="Search files"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
                 strokeLinecap="round" strokeLinejoin="round">
@@ -672,21 +668,21 @@ function Sidebar({
             </button>
           )}
           {isTauri() && (
-            <button className="icon-btn" onClick={onOpenFolder} title="Folder ဖွင့်ပါ">
+            <button className="icon-btn" onClick={onOpenFolder} title="Open Folder">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
                 strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
             </button>
           )}
-          <button className="icon-btn" onClick={() => setIsCreating(true)} title="ဖိုင်အသစ်">
+          <button className="icon-btn" onClick={() => setIsCreating(true)} title="New File">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
               strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-          <button className="icon-btn" onClick={onOpenSettings} title="ဆက်တင်များ">
+          <button className="icon-btn" onClick={onOpenSettings} title="Settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
               strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
@@ -703,7 +699,7 @@ function Sidebar({
             className="new-file-input"
             type="text"
             autoFocus
-            placeholder="ဖိုင်များထဲ ရှာမည်..."
+            placeholder="Search files..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -772,8 +768,8 @@ function Sidebar({
                 <span className="empty-state-icon">📄</span>
                 <span className="empty-state-text">
                   {isTauri() && !currentFolder
-                    ? 'Folder တစ်ခု ဖွင့်ပါ'
-                    : 'ဖိုင်မရှိသေးပါ။ အသစ်တစ်ခု ဖန်တီးလိုက်ပါ။'}
+                    ? 'Open a folder'
+                    : 'No files yet. Create a new one.'}
                 </span>
               </div>
             ) : useTree ? (
@@ -813,7 +809,7 @@ function Sidebar({
                   <button
                     className="file-item-delete icon-btn danger"
                     onClick={(e) => { e.stopPropagation(); onDeleteFile(file.id); }}
-                    title="ဖျက်မည်"
+                    title="Delete"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
                       strokeLinecap="round" strokeLinejoin="round">
@@ -835,7 +831,7 @@ function Sidebar({
         <div className="sidebar-footer">
           <button
             className="icon-btn"
-            title="Folder အသစ်"
+            title="New Folder"
             onClick={() => setCreatingIn({ parentPath: '__root__', mode: 'folder' })}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
@@ -844,7 +840,7 @@ function Sidebar({
               <line x1="12" y1="11" x2="12" y2="17" />
               <line x1="9" y1="14" x2="15" y2="14" />
             </svg>
-            Folder အသစ်
+            New Folder
           </button>
         </div>
       )}
