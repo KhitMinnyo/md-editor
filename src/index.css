@@ -364,12 +364,45 @@ body {
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-2) var(--space-4);
+  /* Keeps the row's height stable whether it holds formatting buttons or
+     the branding placeholder (see .toolbar-brand), so content never
+     shifts up into this area while the editor is initializing. */
+  min-height: 50px;
   background: var(--color-bg-glass);
   backdrop-filter: blur(16px) saturate(1.3);
   -webkit-backdrop-filter: blur(16px) saturate(1.3);
   border-bottom: 1px solid var(--color-bg-glass-border);
   flex-wrap: wrap;
   z-index: 5;
+}
+
+/* Shown instead of formatting controls when there's no active editor yet
+   (initial load, or a non-editable file such as a PDF is open). */
+.toolbar-brand {
+  gap: var(--space-2);
+}
+
+.toolbar-brand-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.toolbar-brand-name {
+  font-weight: 700;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.toolbar-brand-version {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
 }
 
 .toolbar-group {

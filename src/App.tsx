@@ -53,8 +53,15 @@ export default function App() {
   const [activeFileId, setActiveFile] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
 
-  // Editor ref
+  // Editor ref — for imperative access (export, keyboard shortcuts) outside
+  // of render. Mutating a ref doesn't trigger a re-render on its own, so
+  // anything that needs to *render* based on editor readiness (Toolbar,
+  // StatusBar) uses `editorInstance` state instead — see handleEditorReady.
   const editorRef = useRef<Editor | null>(null);
+  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
+  const handleEditorReady = useCallback((ed: Editor | null) => {
+    setEditorInstance(ed);
+  }, []);
 
   /**
    * Load folder: scan tree + flatten to files list
@@ -512,7 +519,7 @@ export default function App() {
       />
       <div className="main-content">
         <Toolbar
-          editor={editorRef.current}
+          editor={editorInstance}
           onExportMarkdown={handleExportMarkdown}
           onExportHtml={handleExportHtml}
           onImportFile={handleImportFile}
@@ -544,6 +551,7 @@ export default function App() {
               content={getEditorContent()}
               onUpdate={handleEditorUpdate}
               editorRef={editorRef}
+              onEditorReady={handleEditorReady}
             />
           )
         ) : (
@@ -578,7 +586,7 @@ export default function App() {
           </div>
         )}
         <StatusBar
-          editor={editorRef.current}
+          editor={editorInstance}
           theme={theme}
           onToggleTheme={toggleTheme}
           saveStatus={saveStatus}

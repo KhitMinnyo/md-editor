@@ -24,9 +24,15 @@ interface EditorProps {
   content: string;
   onUpdate: (html: string) => void;
   editorRef?: React.MutableRefObject<Editor | null>;
+  // Called with the editor instance once it's ready (and with null on
+  // unmount). Unlike editorRef, this drives React state in the parent —
+  // mutating a ref alone doesn't trigger a re-render, which used to leave
+  // the Toolbar/StatusBar stuck showing their "no editor yet" state until
+  // some unrelated re-render happened to pick up the ref's new value.
+  onEditorReady?: (editor: Editor | null) => void;
 }
 
-export default function EditorComponent({ content, onUpdate, editorRef }: EditorProps) {
+export default function EditorComponent({ content, onUpdate, editorRef, onEditorReady }: EditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -138,13 +144,15 @@ export default function EditorComponent({ content, onUpdate, editorRef }: Editor
     if (editorRef) {
       editorRef.current = editor;
     }
+    onEditorReady?.(editor);
 
     return () => {
       if (editorRef) {
         editorRef.current = null;
       }
+      onEditorReady?.(null);
     };
-  }, [editor, editorRef]);
+  }, [editor, editorRef, onEditorReady]);
 
   if (!editor) {
     return (
