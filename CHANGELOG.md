@@ -4,6 +4,25 @@ All notable changes to MD Editor are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Sidebar "Browse by tag" panel: reads the `Tags`/`Date`/`Title` frontmatter
+  fields from every Markdown file in the open folder and lets you drill
+  from a tag cloud into a date-sorted file list.
+
+### Fixed
+- `index.html` was corrupted with a literal ` ```html ` code-fence wrapper,
+  which leaked as visible text at the top of the window on load — the
+  root cause of the original toolbar-area display bug.
+- Window could get permanently stuck unclosable if the pending-save flush
+  on window close threw an error (no try/finally around `destroy()`).
+- Sidebar/Toolbar branding now shows the real app logo (`favicon.svg`)
+  instead of a generic icon.
+
+### Changed
+- All UI text (menus, buttons, dialogs, placeholders, welcome content)
+  translated from Burmese to English so the app is usable without
+  knowing Myanmar. Myanmar Unicode content typing/rendering is unaffected.
+
 ### Removed
 - Auto-update scaffolding (`tauri-plugin-updater`, `tauri-plugin-process`,
   `Settings → Check for Updates`). It was never fully wired up (no signing
