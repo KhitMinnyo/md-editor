@@ -4,6 +4,35 @@ All notable changes to MD Editor are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-03
+
+### Added
+- Rename files/folders, create folders, and create a file/folder inside a
+  specific subfolder, from a new per-row "⋯" menu in the sidebar.
+- Deletes move to a `.trash/` folder next to the vault instead of being
+  removed outright.
+- Recent-files list above the file tree.
+- In-document find & replace (`Cmd/Ctrl+F`).
+- Search across every text/markdown file in the open folder, from the
+  sidebar.
+- Table of contents / outline side panel, derived from document headings.
+- Frontmatter (flat `title`/`tags`/`date` block), editable from a bar
+  above the editor.
+- Pasted/dropped images are saved as real files under `assets/` next to
+  the document instead of being inlined as base64.
+- Detects edits made to the active file from outside the app (another
+  editor, git checkout, sync conflict) and reloads them on window focus
+  when there's no unsaved local edit.
+- Settings dialog: auto-save delay, editor content width, manual update
+  check.
+- Auto-update and macOS notarization *scaffolding* (dependencies, Rust
+  plugin registration, CI secret passthrough) — not fully wired up yet;
+  see README's "Auto-Update Setup" / "macOS Codesigning & Notarization"
+  sections for the remaining manual steps.
+- macOS CI workflow (`.github/workflows/build-macos.yml`) producing a
+  universal `.dmg`, matching the Linux and Windows build workflows.
+- Unit tests (Vitest) for `src/utils/markdown.ts` and `src/utils/fileManager.ts`.
+
 ### Fixed
 - Removed duplicate files that had accidentally been committed to the repo
   (`src 2/`, `index 2.html`, `LICENSE 2`, `eslint.config 2.js`, `icon 2.png`,
@@ -11,11 +40,10 @@ All notable changes to MD Editor are documented in this file.
 - Pending debounced edits are now flushed to disk when the window/app is
   closed, instead of being lost if you quit within ~600ms of your last
   keystroke.
-
-### Added
-- macOS CI workflow (`.github/workflows/build-macos.yml`) producing a
-  universal `.dmg`, matching the Linux and Windows build workflows.
-- Unit tests (Vitest) for `src/utils/markdown.ts` and `src/utils/fileManager.ts`.
+- Toolbar could get stuck showing its empty/no-editor state on load
+  (mutating a ref doesn't trigger a re-render) — now driven by real React
+  state instead, and shows an "MD Editor vX.Y.Z" placeholder rather than
+  collapsing when there's no active editor.
 
 ### Docs
 - Documented why `src-tauri/capabilities/default.json` grants filesystem

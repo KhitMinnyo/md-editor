@@ -1,6 +1,6 @@
 [package]
 name = "md-editor"
-version = "0.1.1"
+version = "0.1.2"
 description = "Myanmar-friendly WYSIWYG Markdown Editor"
 authors = ["KMN"]
 license = "MIT"
