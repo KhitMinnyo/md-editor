@@ -6,7 +6,7 @@ import TurndownService from 'turndown';
 import { marked } from 'marked';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { readTextFile } from '@tauri-apps/plugin-fs';
-import { isTauri, saveFileDialog, type FileTreeNode } from './fileManager';
+import { isTauri, isMarkdownFile, saveFileDialog, type FileTreeNode } from './fileManager';
 
 // Configure Turndown (HTML → Markdown)
 const turndown = new TurndownService({
@@ -147,6 +147,44 @@ export function serializeFrontmatter(frontmatter: Frontmatter | null, body: stri
     .map(([key, value]) => `${key}: ${value}`);
   if (lines.length === 0) return body;
   return `---\n${lines.join('\n')}\n---\n\n${body.replace(/^\r?\n+/, '')}`;
+}
+
+// =================== SAVE-PATH CONTENT SELECTION ===================
+
+/**
+ * Minimal shape of a TipTap `Editor` this module needs — kept structural
+ * (rather than importing the real `Editor` type) so callers can pass a
+ * plain mock in tests without spinning up a real editor instance.
+ */
+export interface SaveTextSource {
+  getHTML: () => string;
+  getText: (options?: { blockSeparator?: string }) => string;
+}
+
+/**
+ * Decide what should be written to disk for `fileName`, given the
+ * editor's current content.
+ *
+ * Markdown files (.md/.markdown/.mdx/.mdown) round-trip through
+ * HTML -> Markdown (turndown) plus frontmatter, same as always.
+ *
+ * Every other text file (.js/.py/.css/.txt/etc) is opened read/write as a
+ * single `<pre><code>` block (see App.tsx's `getEditorContent`) — NOT as
+ * markdown. Running that through `htmlToMarkdown` would wrap the file's
+ * content in a fenced code block (```lang ... ```) and corrupt it on
+ * every save, since turndown always converts `<pre><code>` to a fence.
+ * For those files, the plain text is pulled straight out of the editor
+ * instead, via TipTap's `getText()`, so what's on disk stays plain text.
+ */
+export function serializeEditorContentForSave(
+  fileName: string,
+  editor: SaveTextSource,
+  frontmatter: Frontmatter | null,
+): string {
+  if (!isMarkdownFile(fileName)) {
+    return editor.getText({ blockSeparator: '\n' });
+  }
+  return serializeFrontmatter(frontmatter, htmlToMarkdown(editor.getHTML()));
 }
 
 export interface TaggedFile {

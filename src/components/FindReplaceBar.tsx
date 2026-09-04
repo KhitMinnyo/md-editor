@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Editor } from '@tiptap/core';
 import { findMatches, selectMatch, replaceMatch, replaceAllMatches, type EditorMatch } from '../utils/editorSearch';
 
@@ -12,57 +12,61 @@ export default function FindReplaceBar({ editor, isOpen, onClose }: FindReplaceB
   const [query, setQuery] = useState('');
   const [replacement, setReplacement] = useState('');
   const [showReplace, setShowReplace] = useState(false);
-  const [matches, setMatches] = useState<EditorMatch[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const queryInputRef = useRef<HTMLInputElement>(null);
+  // Bumped after a replace/replace-all mutates the document, to force
+  // `matches` below to recompute against the post-edit doc — see
+  // handleReplace/handleReplaceAll.
+  const [recomputeNonce, setRecomputeNonce] = useState(0);
 
   useEffect(() => {
     if (isOpen) queryInputRef.current?.focus();
   }, [isOpen]);
 
-  const recompute = useCallback(() => {
-    if (!editor || !query) {
-      setMatches([]);
-      return;
-    }
-    const found = findMatches(editor, query, false);
-    setMatches(found);
-    setActiveIndex((prev) => (found.length > 0 ? Math.min(prev, found.length - 1) : 0));
-  }, [editor, query]);
+  // Matches are a pure function of the editor's current document + the
+  // search query, so they're computed (memoized) during render instead of
+  // synced into state via an effect. `recomputeNonce` is the escape hatch
+  // for the one case that isn't captured by [editor, query] alone: a
+  // replace/replace-all edits the document without changing either.
+  const matches = useMemo<EditorMatch[]>(() => {
+    if (!editor || !query) return [];
+    return findMatches(editor, query, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputeNonce is a deliberate cache-buster, not a real input
+  }, [editor, query, recomputeNonce]);
 
-  useEffect(() => {
-    recompute();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, editor]);
+  // Keep the "current match" index in range as the match set shrinks or
+  // grows, without a dedicated effect+state just to clamp a number —
+  // computed at use-sites instead (see JSX below and the effect underneath).
+  const activeIndexClamped = matches.length > 0 ? Math.min(activeIndex, matches.length - 1) : 0;
 
   useEffect(() => {
     if (matches.length > 0 && editor) {
-      selectMatch(editor, matches[activeIndex]);
+      selectMatch(editor, matches[activeIndexClamped]);
     }
-  }, [activeIndex, matches, editor]);
+  }, [activeIndexClamped, matches, editor]);
 
   const goNext = useCallback(() => {
     if (matches.length === 0) return;
-    setActiveIndex((prev) => (prev + 1) % matches.length);
-  }, [matches]);
+    setActiveIndex((activeIndexClamped + 1) % matches.length);
+  }, [matches, activeIndexClamped]);
 
   const goPrev = useCallback(() => {
     if (matches.length === 0) return;
-    setActiveIndex((prev) => (prev - 1 + matches.length) % matches.length);
-  }, [matches]);
+    setActiveIndex((activeIndexClamped - 1 + matches.length) % matches.length);
+  }, [matches, activeIndexClamped]);
 
   const handleReplace = useCallback(() => {
     if (!editor || matches.length === 0) return;
-    replaceMatch(editor, matches[activeIndex], replacement);
+    replaceMatch(editor, matches[activeIndexClamped], replacement);
     // Recompute after the DOM/doc settles from the replace transaction.
-    setTimeout(recompute, 0);
-  }, [editor, matches, activeIndex, replacement, recompute]);
+    setTimeout(() => setRecomputeNonce((n) => n + 1), 0);
+  }, [editor, matches, activeIndexClamped, replacement]);
 
   const handleReplaceAll = useCallback(() => {
     if (!editor || matches.length === 0) return;
     replaceAllMatches(editor, matches, replacement);
-    setTimeout(recompute, 0);
-  }, [editor, matches, replacement, recompute]);
+    setTimeout(() => setRecomputeNonce((n) => n + 1), 0);
+  }, [editor, matches, replacement]);
 
   if (!isOpen) return null;
 
@@ -98,7 +102,7 @@ export default function FindReplaceBar({ editor, isOpen, onClose }: FindReplaceB
           }}
         />
         <span className="find-count">
-          {matches.length > 0 ? `${activeIndex + 1} / ${matches.length}` : query ? '0' : ''}
+          {matches.length > 0 ? `${activeIndexClamped + 1} / ${matches.length}` : query ? '0' : ''}
         </span>
         <button className="icon-btn" onClick={goPrev} title="Previous (Shift+Enter)" disabled={matches.length === 0}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}

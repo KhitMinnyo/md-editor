@@ -8,8 +8,21 @@ All notable changes to MD Editor are documented in this file.
 - Sidebar "Browse by tag" panel: reads the `Tags`/`Date`/`Title` frontmatter
   fields from every Markdown file in the open folder and lets you drill
   from a tag cloud into a date-sorted file list.
+- CI workflow (`.github/workflows/ci.yml`): runs `npm run lint`, `tsc -b
+  --noEmit`, and `npm test` on every push/PR to `main`, so lint/type/test
+  regressions are now caught automatically instead of only on the next
+  platform build.
 
 ### Fixed
+- **Data loss**: opening any non-Markdown text file (`.js`, `.py`, `.css`,
+  `.txt`, etc — the "view/edit other text files" feature) and letting it
+  autosave, or pressing Cmd/Ctrl+S, wrapped the file's entire contents in
+  a Markdown fenced code block (` ```lang ... ``` `) on save, corrupting
+  it. The save path ran every file through the Markdown (turndown)
+  converter unconditionally; it now only does that for actual Markdown
+  files and pulls plain text straight from the editor for everything
+  else. See `serializeEditorContentForSave` in `src/utils/markdown.ts`,
+  covered by new regression tests in `markdown.test.ts`.
 - `index.html` was corrupted with a literal ` ```html ` code-fence wrapper,
   which leaked as visible text at the top of the window on load — the
   root cause of the original toolbar-area display bug.
@@ -22,6 +35,23 @@ All notable changes to MD Editor are documented in this file.
 - All UI text (menus, buttons, dialogs, placeholders, welcome content)
   translated from Burmese to English so the app is usable without
   knowing Myanmar. Myanmar Unicode content typing/rendering is unaffected.
+- Internal refactor: `Sidebar.tsx` (972 lines) and `Toolbar.tsx` (507
+  lines) were split into focused sub-components under
+  `src/components/sidebar/` and `src/components/toolbar/` (tree view,
+  recent files, search results, tags panel; heading select, formatting/
+  list/alignment/insert/history groups, find & outline, export). No
+  behavior change — same props, same rendered output.
+- Fixed all 16 `npm run lint` errors (`react-hooks/set-state-in-effect`,
+  `react-hooks/refs`, `react-hooks/preserve-manual-memoization`), plus
+  `eslint.config.js` no longer lints `src-tauri/target` (Rust build
+  output was being parsed as JS). `npm run lint` and `tsc -b --noEmit`
+  are both clean again. Fixes reset dialog/panel state on open/switch via
+  React's documented render-time pattern instead of an effect+setState,
+  use `useSyncExternalStore` for the Outline panel's live heading list,
+  and wrap unavoidable async-effect state updates in the fewest cases
+  where that's the right tool. One small, deliberate behavior change:
+  the sidebar search "Searching…" indicator now appears once the 300ms
+  debounce fires rather than on every keystroke.
 
 ### Removed
 - Auto-update scaffolding (`tauri-plugin-updater`, `tauri-plugin-process`,

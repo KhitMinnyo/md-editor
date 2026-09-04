@@ -11,12 +11,24 @@ export default function TableDialog({ isOpen, onSubmit, onClose }: TableDialogPr
   const [cols, setCols] = useState(3);
   const rowsRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // Reset the form fields the moment the dialog transitions to open,
+  // computed during render (React's documented pattern for resetting
+  // state on a prop change) rather than via an effect.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setRows(3);
       setCols(3);
-      setTimeout(() => rowsRef.current?.focus(), 50);
     }
+  }
+
+  // Focus is a real side effect (the DOM), so it stays in an effect,
+  // separate from the state reset above.
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = setTimeout(() => rowsRef.current?.focus(), 50);
+    return () => clearTimeout(id);
   }, [isOpen]);
 
   if (!isOpen) return null;

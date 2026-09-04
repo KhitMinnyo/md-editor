@@ -12,13 +12,28 @@ export default function LinkDialog({ isOpen, initialText, onSubmit, onClose }: L
   const [text, setText] = useState('');
   const urlRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // Reset the form fields the moment the dialog transitions to open,
+  // computed during render (React's documented pattern for resetting
+  // state on a prop change) rather than via an effect. `initialText` is
+  // only ever set at the same moment `isOpen` flips true (see Toolbar's
+  // handleLink), so keying off `isOpen` alone is equivalent to the
+  // original [isOpen, initialText] effect deps.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setUrl('');
       setText(initialText || '');
-      setTimeout(() => urlRef.current?.focus(), 50);
     }
-  }, [isOpen, initialText]);
+  }
+
+  // Focus is a real side effect (the DOM), so it stays in an effect,
+  // separate from the state reset above.
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = setTimeout(() => urlRef.current?.focus(), 50);
+    return () => clearTimeout(id);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { AppSettings } from '../utils/settings';
 
 interface SettingsDialogProps {
@@ -16,9 +16,17 @@ export default function SettingsDialog({
 }: SettingsDialogProps) {
   const [draft, setDraft] = useState<AppSettings>(settings);
 
-  useEffect(() => {
+  // Reset the draft to the current settings the moment the dialog opens,
+  // computed during render (React's documented pattern for resetting
+  // state on a prop change) rather than via an effect. `settings` only
+  // ever changes as a result of this dialog's own Save button, which
+  // closes the dialog in the same action, so keying off `isOpen` alone is
+  // equivalent to the original [isOpen, settings] effect deps.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) setDraft(settings);
-  }, [isOpen, settings]);
+  }
 
   if (!isOpen) return null;
 

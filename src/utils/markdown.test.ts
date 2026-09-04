@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { markdownToHtml, htmlToMarkdown } from './markdown';
+import { markdownToHtml, htmlToMarkdown, serializeEditorContentForSave, type SaveTextSource } from './markdown';
 
 describe('markdownToHtml', () => {
   it('renders basic formatting', () => {
@@ -59,5 +59,64 @@ describe('markdown <-> html round trip', () => {
     expect(back).toContain('<table>');
     expect(back).toMatch(/<td[^>]*>\s*1\s*<\/td>/);
     expect(back).toMatch(/<td[^>]*>\s*2\s*<\/td>/);
+  });
+});
+
+describe('serializeEditorContentForSave', () => {
+  // Regression test: opening a non-markdown text file (.js/.py/.css/...)
+  // renders it as a single <pre><code> block (see App.tsx's
+  // getEditorContent), and editing + saving it used to run that HTML
+  // through htmlToMarkdown unconditionally — which wraps <pre><code> in a
+  // fenced code block and corrupts the file on every save. This pins the
+  // fix: non-markdown files must be saved as plain text, never fenced
+  // markdown, regardless of what the HTML looks like.
+  it('saves a non-markdown file as plain text, not a fenced code block', () => {
+    const code = 'function hello() {\n  console.log("hi");\n}';
+    const editor: SaveTextSource = {
+      getHTML: () => `<pre><code class="language-js">${code}</code></pre>`,
+      getText: () => code,
+    };
+    const saved = serializeEditorContentForSave('script.js', editor, null);
+    expect(saved).toBe(code);
+    expect(saved).not.toContain('```');
+  });
+
+  it('uses getText (not getHTML/turndown) for any non-markdown extension', () => {
+    const text = 'body { color: red; }';
+    const editor: SaveTextSource = {
+      getHTML: () => `<pre><code class="language-css">${text}</code></pre>`,
+      getText: () => text,
+    };
+    expect(serializeEditorContentForSave('styles.css', editor, null)).toBe(text);
+    expect(serializeEditorContentForSave('notes.txt', editor, null)).toBe(text);
+    expect(serializeEditorContentForSave('README', editor, null)).toBe(text);
+  });
+
+  it('still converts markdown files through htmlToMarkdown + frontmatter', () => {
+    const editor: SaveTextSource = {
+      getHTML: () => '<h1>Title</h1><p><strong>bold</strong></p>',
+      getText: () => 'Title\nbold', // should be ignored for .md files
+    };
+    const saved = serializeEditorContentForSave('notes.md', editor, { title: 'Notes' });
+    expect(saved).toContain('---');
+    expect(saved).toContain('title: Notes');
+    expect(saved).toContain('# Title');
+    expect(saved).toContain('**bold**');
+    expect(saved).not.toBe('Title\nbold');
+  });
+
+  it('is case-insensitive and handles markdown-family extensions (.markdown/.mdx/.mdown)', () => {
+    // getHTML() and getText() deliberately return different values, so a
+    // wrong branch (or a case-sensitivity bug) shows up as the wrong text.
+    const editor: SaveTextSource = {
+      getHTML: () => '<p>from html</p>',
+      getText: () => 'from text',
+    };
+    for (const name of ['notes.MD', 'notes.markdown', 'notes.mdx', 'notes.mdown']) {
+      expect(serializeEditorContentForSave(name, editor, null)).toBe('from html');
+    }
+    for (const name of ['script.JS', 'archive.tar.gz', 'README']) {
+      expect(serializeEditorContentForSave(name, editor, null)).toBe('from text');
+    }
   });
 });

@@ -42,10 +42,9 @@ import {
   exportAsMarkdown,
   exportAsHtml,
   markdownToHtml,
-  htmlToMarkdown,
   importMarkdownFileBrowser,
   parseFrontmatter,
-  serializeFrontmatter,
+  serializeEditorContentForSave,
   scanFrontmatterIndex,
   type Frontmatter,
   type TagIndexEntry,
@@ -351,14 +350,27 @@ export default function App() {
     frontmatterRef.current = frontmatter;
   }, [frontmatter]);
 
-  useEffect(() => {
-    if (!activeFile || !isTauri() || !isMarkdownFile(activeFile.name)) {
-      setFrontmatter({});
-      return;
-    }
-    const { frontmatter: fm } = parseFrontmatter(activeFile.content);
-    setFrontmatter(fm ?? {});
-  }, [activeFile]);
+  // Re-derive frontmatter whenever the open "document identity" changes —
+  // a different file, or the same file reloaded after an external change
+  // (see `reloadNonce`, also used to key/remount EditorComponent below).
+  // Done synchronously during render (comparing against the previous key,
+  // React's documented pattern for resetting state when an prop/identity
+  // changes: https://react.dev/learn/you-might-not-need-an-effect) rather
+  // than in an effect, so it can't run a render behind the file it's for.
+  const frontmatterKey = activeFileId ? `${activeFileId}-${reloadNonce}` : null;
+  const [lastFrontmatterKey, setLastFrontmatterKey] = useState<string | null>(null);
+  if (frontmatterKey !== lastFrontmatterKey) {
+    setLastFrontmatterKey(frontmatterKey);
+    const next =
+      activeFile && isTauri() && isMarkdownFile(activeFile.name)
+        ? parseFrontmatter(activeFile.content).frontmatter ?? {}
+        : {};
+    // Don't also write frontmatterRef.current here — refs can't be
+    // written during render. The effect above (`frontmatterRef.current =
+    // frontmatter`) picks up this new value right after this state update
+    // commits.
+    setFrontmatter(next);
+  }
 
   // Open folder (Tauri native)
   const handleOpenFolder = useCallback(async () => {
@@ -511,6 +523,24 @@ export default function App() {
   // (saveTimerRef / pendingHtmlRef / activeFileIdRef are declared earlier,
   // near trackMtime, since the window-focus handler also needs them.)
 
+  // Turn the editor's current HTML into what should be written to disk for
+  // `fileId`. Markdown files round-trip through HTML -> Markdown (turndown)
+  // plus frontmatter, same as before. Non-markdown text files (.js/.py/.css
+  // /.txt/etc — shown as a single <pre><code> block, see getEditorContent
+  // below) must NOT go through that conversion: turndown would wrap their
+  // content in a fenced code block (```lang ... ```) and corrupt the file
+  // on every save. For those, pull the plain text straight out of the
+  // editor instead, via TipTap's getText().
+  const serializeForSave = useCallback((fileId: string, html: string): string => {
+    if (!isTauri()) return html;
+    const fileName = fileId.split('/').pop() || '';
+    // Prefer pulling live from the editor instance (matches what's
+    // actually on screen); fall back to the captured HTML string in the
+    // unlikely case there's no live editor to read from.
+    const source = editorRef.current ?? { getHTML: () => html, getText: () => html };
+    return serializeEditorContentForSave(fileName, source, frontmatterRef.current);
+  }, []);
+
   // Immediately persist whatever edit is pending, bypassing the debounce.
   // Used by the window close handler so in-flight edits aren't lost.
   const flushPendingSave = useCallback(async () => {
@@ -524,14 +554,11 @@ export default function App() {
     pendingHtmlRef.current = null;
 
     setSaveStatus('saving');
-    let contentToSave = isTauri() ? htmlToMarkdown(pendingHtml) : pendingHtml;
-    if (isTauri()) {
-      contentToSave = serializeFrontmatter(frontmatterRef.current, contentToSave);
-    }
+    const contentToSave = serializeForSave(fileId, pendingHtml);
     await saveFile(fileId, contentToSave);
     trackMtime(fileId);
     setSaveStatus('saved');
-  }, [trackMtime]);
+  }, [trackMtime, serializeForSave]);
 
   const handleEditorUpdate = useCallback(
     (html: string) => {
@@ -561,7 +588,7 @@ export default function App() {
         flushPendingSave();
       }, settings.autoSaveDelayMs);
     },
-    [activeFileId, flushPendingSave, settings.autoSaveDelayMs],
+    [activeFileId, flushPendingSave, settings.autoSaveDelayMs, setFrontmatter],
   );
 
   // Browser/dev fallback: best-effort synchronous flush to localStorage
@@ -661,12 +688,7 @@ export default function App() {
             saveTimerRef.current = null;
           }
           pendingHtmlRef.current = null;
-          let contentToSave = isTauri()
-            ? htmlToMarkdown(editorRef.current.getHTML())
-            : editorRef.current.getHTML();
-          if (isTauri()) {
-            contentToSave = serializeFrontmatter(frontmatterRef.current, contentToSave);
-          }
+          const contentToSave = serializeForSave(activeFileId, editorRef.current.getHTML());
           saveFile(activeFileId, contentToSave).then(() => trackMtime(activeFileId));
           setSaveStatus('saved');
         }
@@ -691,7 +713,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFileId, handleCreateFile, handleImportFile, handleOpenFolder, trackMtime]);
+  }, [activeFileId, handleCreateFile, handleImportFile, handleOpenFolder, trackMtime, serializeForSave]);
 
   const isMd = activeFile ? isMarkdownFile(activeFile.name) : false;
 

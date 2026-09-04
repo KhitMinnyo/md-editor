@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useSyncExternalStore, useRef, useCallback } from 'react';
 import type { Editor } from '@tiptap/core';
 
 interface HeadingItem {
@@ -21,25 +21,41 @@ function extractHeadings(editor: Editor): HeadingItem[] {
   return items;
 }
 
-export default function Outline({ editor }: { editor: Editor | null }) {
-  const [headings, setHeadings] = useState<HeadingItem[]>([]);
+const EMPTY_HEADINGS: HeadingItem[] = [];
 
-  const refresh = useCallback(() => {
-    if (!editor) {
-      setHeadings([]);
-      return;
+export default function Outline({ editor }: { editor: Editor | null }) {
+  // Headings mirror an external system (the TipTap/ProseMirror document),
+  // so this uses useSyncExternalStore — React's dedicated hook for that —
+  // instead of an effect that subscribes and setState()s the current
+  // value into local state. `cacheRef` remembers the last doc object a
+  // heading list was computed for, so getSnapshot can return the exact
+  // same array reference when nothing changed (required: a fresh array
+  // every call would make useSyncExternalStore re-render in a loop).
+  const cacheRef = useRef<{ doc: unknown; headings: HeadingItem[] } | null>(null);
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (!editor) return () => {};
+      editor.on('update', onStoreChange);
+      return () => {
+        editor.off('update', onStoreChange);
+      };
+    },
+    [editor],
+  );
+
+  const getSnapshot = useCallback((): HeadingItem[] => {
+    if (!editor) return EMPTY_HEADINGS;
+    const doc = editor.state.doc;
+    if (cacheRef.current && cacheRef.current.doc === doc) {
+      return cacheRef.current.headings;
     }
-    setHeadings(extractHeadings(editor));
+    const headings = extractHeadings(editor);
+    cacheRef.current = { doc, headings };
+    return headings;
   }, [editor]);
 
-  useEffect(() => {
-    refresh();
-    if (!editor) return;
-    editor.on('update', refresh);
-    return () => {
-      editor.off('update', refresh);
-    };
-  }, [editor, refresh]);
+  const headings = useSyncExternalStore(subscribe, getSnapshot);
 
   const goTo = (pos: number) => {
     if (!editor) return;
