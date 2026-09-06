@@ -12,7 +12,11 @@ import {
   rename as renamePathFs,
   mkdir,
   stat,
+  watch as watchFs,
+  type WatchEvent,
 } from '@tauri-apps/plugin-fs';
+
+export type { WatchEvent };
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 
 export interface MdFile {
@@ -327,6 +331,29 @@ export async function getFileMtime(filePath: string): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+// =================== FILE WATCHING ===================
+
+/**
+ * Watch a folder (recursively) for filesystem changes made by anything
+ * other than this app — another editor, `git checkout`, a sync client,
+ * or an AI coding agent writing files into the open folder. The sidebar
+ * and the currently open file otherwise only notice such changes when
+ * the app regains window focus (see App.tsx's `checkActiveFileForExternalChange`),
+ * which misses changes made while the app stays focused/visible.
+ *
+ * `delayMs` debounces bursts of events (e.g. an agent writing many files
+ * in a row) into a single callback. Returns an unwatch function the
+ * caller must invoke when the folder changes or the component unmounts;
+ * a no-op function outside Tauri.
+ */
+export async function watchFolder(
+  dirPath: string,
+  onChange: (event: WatchEvent) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  return watchFs(dirPath, onChange, { recursive: true, delayMs: 400 });
 }
 
 // =================== IMAGE ASSETS ===================

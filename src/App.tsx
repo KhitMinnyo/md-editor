@@ -37,6 +37,7 @@ import {
   searchInTree,
   getFileMtime,
   saveImageAsset,
+  watchFolder,
 } from './utils/fileManager';
 import {
   exportAsMarkdown,
@@ -141,6 +142,28 @@ export default function App() {
   useEffect(() => {
     activeFileIdRef.current = activeFileId;
   }, [activeFileId]);
+
+  // Reload the active file's content from disk if it changed outside this
+  // app (another editor, `git checkout`, a sync client, an AI agent
+  // writing into the open folder, ...). Called from both the window-focus
+  // handler and the folder watcher below. Only reloads when there's no
+  // in-flight local edit — otherwise we'd risk clobbering what the user
+  // just typed, or overwriting their change on the next autosave.
+  const checkActiveFileForExternalChange = useCallback(async () => {
+    const id = activeFileIdRef.current;
+    if (!id || pendingHtmlRef.current) return;
+    try {
+      const mtime = await getFileMtime(id);
+      if (mtime !== null && lastKnownMtimeRef.current !== null && mtime > lastKnownMtimeRef.current) {
+        const content = await readFile(id);
+        setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, content } : f)));
+        lastKnownMtimeRef.current = mtime;
+        setReloadNonce((n) => n + 1);
+      }
+    } catch (err) {
+      console.error('Failed to check for external file changes:', err);
+    }
+  }, []);
 
   /**
    * Open a file by its absolute path.
@@ -303,23 +326,11 @@ export default function App() {
         // ignore
       }
 
-      // Detect edits made outside this app (another editor, git checkout,
-      // sync conflict, etc). Only auto-reload when there's no in-flight
-      // local edit — otherwise we'd risk clobbering what the user just
-      // typed, or overwriting their change on the next autosave.
-      const id = activeFileIdRef.current;
-      if (!id || pendingHtmlRef.current) return;
-      try {
-        const mtime = await getFileMtime(id);
-        if (mtime !== null && lastKnownMtimeRef.current !== null && mtime > lastKnownMtimeRef.current) {
-          const content = await readFile(id);
-          setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, content } : f)));
-          lastKnownMtimeRef.current = mtime;
-          setReloadNonce((n) => n + 1);
-        }
-      } catch (err) {
-        console.error('Failed to check for external file changes:', err);
-      }
+      // Detect edits made outside this app while we were away (the
+      // folder watcher below handles it live while the window stays
+      // focused — this is the fallback for whatever it might have missed,
+      // e.g. if the window was unfocused when the watcher wasn't active).
+      await checkActiveFileForExternalChange();
     };
     window.addEventListener('focus', handleWindowFocus);
 
@@ -327,7 +338,49 @@ export default function App() {
       if (unlisten) unlisten();
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [openFileByPath]);
+  }, [openFileByPath, checkActiveFileForExternalChange]);
+
+  // Live-watch the open folder for filesystem changes made by anything
+  // other than this app — new files, edits, deletes, renames. Without
+  // this, such changes (e.g. an AI coding agent writing into the open
+  // folder) were only ever noticed when the window regained focus, so
+  // they'd stay invisible for as long as md-editor stayed the focused,
+  // visible window.
+  useEffect(() => {
+    if (!isTauri() || !currentFolder) return;
+
+    let cancelled = false;
+    let unwatch: (() => void) | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Re-scanning the tree on every single event would be wasteful if an
+    // agent is writing many files in a burst — debounce on top of the
+    // watcher's own delayMs.
+    const scheduleTreeRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        loadFolder(currentFolder);
+      }, 250);
+    };
+
+    (async () => {
+      const fn = await watchFolder(currentFolder, () => {
+        scheduleTreeRefresh();
+        checkActiveFileForExternalChange();
+      });
+      if (cancelled) {
+        fn();
+      } else {
+        unwatch = fn;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (unwatch) unwatch();
+    };
+  }, [currentFolder, loadFolder, checkActiveFileForExternalChange]);
 
   // Apply theme
   useEffect(() => {

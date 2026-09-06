@@ -6,6 +6,7 @@ import {
   isBinaryFile,
   isPdfFile,
   isTauri,
+  watchFolder,
 } from './fileManager';
 
 describe('getFileExtension', () => {
@@ -79,5 +80,16 @@ describe('isPdfFile', () => {
 describe('isTauri', () => {
   it('is false in a plain browser/test environment (no __TAURI_INTERNALS__)', () => {
     expect(isTauri()).toBe(false);
+  });
+});
+
+describe('watchFolder', () => {
+  it('is a no-op outside Tauri: resolves to a callable unwatch function and never calls back', async () => {
+    const onChange = () => {
+      throw new Error('onChange should never fire outside Tauri');
+    };
+    const unwatch = await watchFolder('/some/folder', onChange);
+    expect(typeof unwatch).toBe('function');
+    expect(() => unwatch()).not.toThrow();
   });
 });

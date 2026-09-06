@@ -5,6 +5,18 @@ All notable changes to MD Editor are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Live folder watching**: the open folder is now watched at the OS
+  level (via `@tauri-apps/plugin-fs`'s `watch`, recursive, 400ms debounce)
+  for changes made by anything other than this app — another editor, git,
+  a sync client, or an AI coding agent writing files into the vault. New/
+  deleted/renamed files now appear in the sidebar tree live, and if the
+  currently open file's content changes on disk, it's reloaded into the
+  editor automatically (same safety check as before: skipped while
+  there's an in-flight local edit, to avoid clobbering your typing).
+  Previously this only happened when the window regained focus, so
+  changes made while md-editor stayed the focused/visible window were
+  invisible until you clicked away and back. Requires the new
+  `fs:allow-watch`/`fs:allow-unwatch` capabilities.
 - Sidebar "Browse by tag" panel: reads the `Tags`/`Date`/`Title` frontmatter
   fields from every Markdown file in the open folder and lets you drill
   from a tag cloud into a date-sorted file list.
