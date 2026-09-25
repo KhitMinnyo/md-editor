@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { readDir } from '@tauri-apps/plugin-fs';
 import {
   getFileExtension,
   isMarkdownFile,
@@ -6,8 +7,14 @@ import {
   isBinaryFile,
   isPdfFile,
   isTauri,
+  listFileTree,
   watchFolder,
 } from './fileManager';
+
+vi.mock('@tauri-apps/plugin-fs', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@tauri-apps/plugin-fs')>(),
+  readDir: vi.fn(),
+}));
 
 describe('getFileExtension', () => {
   it('returns the lowercased extension', () => {
@@ -91,5 +98,22 @@ describe('watchFolder', () => {
     const unwatch = await watchFolder('/some/folder', onChange);
     expect(typeof unwatch).toBe('function');
     expect(() => unwatch()).not.toThrow();
+  });
+});
+
+describe('listFileTree', () => {
+  it('keeps empty directories in the tree', async () => {
+    const readDirMock = vi.mocked(readDir);
+    readDirMock
+      .mockResolvedValueOnce([{ name: 'Empty', isDirectory: true, isFile: false, isSymlink: false }])
+      .mockResolvedValueOnce([]);
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} });
+
+    await expect(listFileTree('/vault')).resolves.toEqual([
+      { name: 'Empty', path: '/vault/Empty', isDir: true, children: [] },
+    ]);
+
+    delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    readDirMock.mockReset();
   });
 });

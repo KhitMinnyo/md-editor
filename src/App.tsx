@@ -51,6 +51,7 @@ import {
   type TagIndexEntry,
 } from './utils/markdown';
 import { getSettings, saveSettings, type AppSettings } from './utils/settings';
+import { checkForUpdate, type UpdateStatus } from './utils/updateChecker';
 
 type Theme = 'light' | 'dark';
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
@@ -66,6 +67,28 @@ export default function App() {
   // Settings
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'checking' });
+
+  const performUpdateCheck = useCallback(async () => {
+    try {
+      setUpdateStatus(await checkForUpdate(__APP_VERSION__));
+    } catch (err) {
+      console.error('Failed to check for updates:', err);
+      setUpdateStatus({ state: 'error' });
+    }
+  }, []);
+
+  const checkForUpdates = useCallback(() => {
+    setUpdateStatus({ state: 'checking' });
+    void performUpdateCheck();
+  }, [performUpdateCheck]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void performUpdateCheck();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [performUpdateCheck]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--editor-max-width', `${settings.editorMaxWidth}px`);
@@ -364,14 +387,18 @@ export default function App() {
     };
 
     (async () => {
-      const fn = await watchFolder(currentFolder, () => {
-        scheduleTreeRefresh();
-        checkActiveFileForExternalChange();
-      });
-      if (cancelled) {
-        fn();
-      } else {
-        unwatch = fn;
+      try {
+        const fn = await watchFolder(currentFolder, () => {
+          scheduleTreeRefresh();
+          checkActiveFileForExternalChange();
+        });
+        if (cancelled) {
+          fn();
+        } else {
+          unwatch = fn;
+        }
+      } catch (err) {
+        console.error('Failed to watch the open folder:', err);
       }
     })();
 
@@ -880,6 +907,8 @@ export default function App() {
       <SettingsDialog
         isOpen={settingsOpen}
         settings={settings}
+        updateStatus={updateStatus}
+        onCheckForUpdates={checkForUpdates}
         onSave={handleSaveSettings}
         onClose={() => setSettingsOpen(false)}
       />

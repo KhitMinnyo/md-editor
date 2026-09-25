@@ -166,14 +166,12 @@ export async function listFileTree(dirPath: string): Promise<FileTreeNode[]> {
 
       if (entry.isDirectory) {
         const children = await listFileTree(entryPath);
-        if (children.length > 0) {
-          nodes.push({
-            name: entry.name,
-            path: entryPath,
-            isDir: true,
-            children,
-          });
-        }
+        nodes.push({
+          name: entry.name,
+          path: entryPath,
+          isDir: true,
+          children,
+        });
       } else if (entry.isFile) {
         nodes.push({
           name: entry.name,

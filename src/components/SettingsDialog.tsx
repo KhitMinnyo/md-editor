@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import type { AppSettings } from '../utils/settings';
+import { LATEST_RELEASE_PAGE, type UpdateStatus } from '../utils/updateChecker';
 
 interface SettingsDialogProps {
   isOpen: boolean;
   settings: AppSettings;
+  updateStatus: UpdateStatus;
+  onCheckForUpdates: () => void;
   onSave: (settings: AppSettings) => void;
   onClose: () => void;
 }
@@ -11,6 +14,8 @@ interface SettingsDialogProps {
 export default function SettingsDialog({
   isOpen,
   settings,
+  updateStatus,
+  onCheckForUpdates,
   onSave,
   onClose,
 }: SettingsDialogProps) {
@@ -74,10 +79,36 @@ export default function SettingsDialog({
         </div>
 
         <div className="dialog-field">
-          <label className="dialog-label">Version</label>
+          <label className="dialog-label">Current version</label>
           <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
             v{__APP_VERSION__}
           </span>
+        </div>
+
+        <div className="dialog-field">
+          <label className="dialog-label">Software updates</label>
+          <div className="update-check-row">
+            <span className={`update-status update-status-${updateStatus.state}`} role="status" aria-live="polite">
+              {updateStatus.state === 'idle' && 'Not checked yet'}
+              {updateStatus.state === 'checking' && 'Checking GitHub Releases...'}
+              {updateStatus.state === 'current' && `You are up to date (latest: v${updateStatus.latestVersion})`}
+              {updateStatus.state === 'available' && (
+                <>
+                  v{updateStatus.latestVersion} is available.{' '}
+                  <a href={LATEST_RELEASE_PAGE} target="_blank" rel="noreferrer">View release</a>
+                </>
+              )}
+              {updateStatus.state === 'error' && 'Could not check for updates. Check your internet connection.'}
+            </span>
+            <button
+              type="button"
+              className="dialog-btn dialog-btn-cancel update-check-button"
+              onClick={onCheckForUpdates}
+              disabled={updateStatus.state === 'checking'}
+            >
+              Check for Updates
+            </button>
+          </div>
         </div>
 
         <div className="dialog-actions">

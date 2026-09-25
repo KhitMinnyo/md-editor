@@ -48,7 +48,10 @@
       "identifier": "fs:allow-copy-file",
       "allow": [{ "path": "**" }]
     },
-    "fs:allow-watch",
+    {
+      "identifier": "fs:allow-watch",
+      "allow": [{ "path": "**" }]
+    },
     "fs:allow-unwatch",
     "dialog:default",
     "dialog:allow-open",

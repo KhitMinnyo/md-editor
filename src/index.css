@@ -1296,6 +1296,8 @@ body {
   box-shadow: 0 16px 48px var(--color-shadow-strong);
   width: 90%;
   max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
   animation: dialogIn 0.2s ease;
 }
 
@@ -1340,6 +1342,37 @@ body {
 
 .dialog-field {
   padding: var(--space-3) var(--space-5);
+}
+
+.update-check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.update-status {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.update-status-available {
+  color: var(--color-accent);
+}
+
+.update-status a {
+  color: inherit;
+  font-weight: 600;
+}
+
+.update-check-button {
+  padding-inline: var(--space-3);
+}
+
+.update-check-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .dialog-label {
