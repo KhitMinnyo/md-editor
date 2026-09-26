@@ -2,15 +2,15 @@
 
 All notable changes to MD Editor are documented in this file.
 
-## [Unreleased]
+## \[Unreleased\]
 
-## [0.1.3] - 2026-09-25
+## \[0.1.3\] - 2026-09-25
 
 ### Added
 
--   **GitHub release checks**: the app checks for a newer stable release on
+-   **GitHub release checks**: the app checks for a newer stable release on  
     launch and reports its status in Settings, with a link to the release page.
-
+    
 -   **Live folder watching**: the open folder is now watched at the OS  
     level (via `@tauri-apps/plugin-fs`'s `watch`, recursive, 400ms debounce)  
     for changes made by anything other than this app — another editor, git,  
@@ -35,9 +35,9 @@ All notable changes to MD Editor are documented in this file.
 
 ### Fixed
 
--   External filesystem changes now have the required folder watch scope, and
+-   External filesystem changes now have the required folder watch scope, and  
     empty folders remain visible in the sidebar tree.
-
+    
 -   **Data loss**: opening any non-Markdown text file (`.js`, `.py`, `.css`,  
     `.txt`, etc — the "view/edit other text files" feature) and letting it  
     autosave, or pressing Cmd/Ctrl+S, wrapped the file's entire contents in  
